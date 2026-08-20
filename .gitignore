@@ -41,3 +41,5 @@ logs/
 # 环境变量（如果用户手动测试 init.py）
 .env
 .env.local
+.claude
+.code-review-graph
