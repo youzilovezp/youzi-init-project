@@ -1,0 +1,81 @@
+"""
+{{ project_title }} - FastAPI 应用入口。
+
+启动方式：
+    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+文档地址：
+    Swagger:   http://localhost:8000/docs
+    ReDoc:     http://localhost:8000/redoc
+    OpenAPI:   http://localhost:8000/api/v1/openapi.json
+"""
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app import __version__
+from app.api.v1.router import api_router
+from app.core.config import settings
+from app.core.exceptions import register_exception_handlers
+from app.core.logging import setup_logging
+from app.db.init_db import init_db
+{% if enable_redis %}
+from app.db.redis_client import redis_client
+{% endif %}
+from app.middleware.logging import LoggingMiddleware
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用生命周期：启动时初始化资源，关闭时释放。"""
+    setup_logging()
+    # 初始化数据库表与种子数据
+    await init_db()
+    {% if enable_redis %}
+    # 建立 Redis 连接
+    await redis_client.connect()
+    {% endif %}
+    yield
+    {% if enable_redis %}
+    await redis_client.close()
+    {% endif %}
+
+
+def create_app() -> FastAPI:
+    """应用工厂。"""
+    app = FastAPI(
+        title=settings.APP_NAME,
+        version=__version__,
+        description=settings.APP_DESCRIPTION,
+        openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
+        docs_url="/docs",
+        redoc_url="/redoc",
+        lifespan=lifespan,
+    )
+
+    # CORS
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    # 日志中间件
+    app.add_middleware(LoggingMiddleware)
+
+    # 全局异常处理
+    register_exception_handlers(app)
+
+    # 注册路由
+    app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+
+    @app.get("/health", tags=["健康检查"])
+    async def health() -> dict:
+        return {"status": "ok", "version": __version__}
+
+    return app
+
+
+app = create_app()

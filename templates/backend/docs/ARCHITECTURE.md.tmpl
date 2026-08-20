@@ -1,0 +1,158 @@
+# {{ project_title }} 后端架构说明
+
+> 本文档描述后端服务的分层结构、数据流、依赖关系，方便团队成员快速理解整体设计。
+
+## 1. 分层架构
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                     API 层 (app/api/v1/endpoints)       │
+│  - 接收请求、参数校验、调用 Service、返回统一响应        │
+│  - 薄路由，不含业务逻辑                                  │
+└──────────────────────┬──────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────┐
+│                  Service 层 (app/services)               │
+│  - 业务逻辑编排                                          │
+│  - 跨多个模型/CRUD 的组合操作                            │
+│  - 事务边界                                              │
+└──────────────────────┬──────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────┐
+│                   CRUD 层 (app/crud)                     │
+│  - 单表的增删改查                                        │
+│  - 复用 CRUDBase 提供的通用方法                          │
+└──────────────────────┬──────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────┐
+│                   Model 层 (app/models)                  │
+│  - SQLAlchemy ORM 模型                                  │
+│  - 数据库 schema 定义                                    │
+└──────────────────────┬──────────────────────────────────┘
+                       │
+                       ▼
+                  ┌────────────┐
+                  │  数据库   │
+                  └────────────┘
+```
+
+**配套横切关注点：**
+
+| 模块 | 职责 |
+|---|---|
+| `app/core/config.py` | 统一配置加载（pydantic-settings）|
+| `app/core/security.py` | JWT、密码哈希 |
+| `app/core/exceptions.py` | 业务异常 + 全局异常处理 |
+| `app/core/logging.py` | loguru 日志 |
+| `app/middleware/` | CORS、日志中间件 |
+| `app/api/deps.py` | 依赖注入（Session、当前用户）|
+| `app/schemas/` | Pydantic 请求/响应模型 |
+| `app/tasks/` | Celery 异步任务 |
+| `app/utils/` | 通用工具函数 |
+
+## 2. 请求生命周期
+
+```
+HTTP 请求
+   │
+   ▼
+1. LoggingMiddleware（记录 method/path/duration）
+   │
+   ▼
+2. CORSMiddleware（处理跨域）
+   │
+   ▼
+3. 路由匹配（app/api/v1/router.py）
+   │
+   ▼
+4. 依赖注入
+   - SessionDep（注入 AsyncSession）
+   - CurrentUser（注入当前登录用户）
+   │
+   ▼
+5. endpoint 函数
+   - 入参校验（Pydantic）
+   - 调用 Service / CRUD
+   │
+   ▼
+6. 异常处理
+   - BusinessError → 业务错误响应
+   - RequestValidationError → 422 校验失败
+   - 其他 → 500 服务器错误
+   │
+   ▼
+7. ResponseModel 包装（统一响应格式）
+```
+
+## 3. 统一响应格式
+
+所有接口返回：
+
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": { ... }
+}
+```
+
+- `code = 0`：成功
+- `code = 4xxxx`：业务错误（NotFoundError=40400、AuthError=40100、PermissionDeniedError=40300）
+- `code = 42200`：参数校验失败
+- `code = 50000`：服务器内部错误
+
+## 4. 鉴权流程
+
+```
+┌─────────┐                  ┌─────────┐                ┌─────────┐
+│ Client  │  POST /login     │  Auth   │   SELECT       │   DB    │
+│         │ ───────────────▶ │ Service │ ─────────────▶ │ users   │
+│         │                  │         │ ◀─ User ─────  │         │
+│         │ ◀─── JWT ──────  │         │                │         │
+└─────────┘                  └─────────┘                └─────────┘
+      │                              ▲
+      │  GET /users (Bearer xxx)     │
+      ▼                              │
+┌─────────┐                  ┌─────────┐                ┌─────────┐
+│         │  ───────────────▶│  deps   │  decode_token  │         │
+│         │                  │         │  get_current   │ users   │
+│ 业务处理 │                  │         │                │         │
+│         │                  │         │                │         │
+└─────────┘                  └─────────┘                └─────────┘
+```
+
+## 5. 中间件体系
+
+| 中间件 | 用途 | 是否启用 |
+|---|---|---|
+| PostgreSQL | 主数据库 | ✅ |
+| MySQL | 主数据库（可切换）| 可选 |
+| Redis | 缓存、限流、Celery broker | {{ '✅' if enable_redis else '⬜' }} |
+| RabbitMQ | 消息队列 | {{ '✅' if enable_rabbitmq else '⬜' }} |
+| MinIO | 对象存储（S3 兼容）| {{ '✅' if enable_minio else '⬜' }} |
+| Celery | 异步任务 | {{ '✅' if enable_celery else '⬜' }} |
+
+## 6. 代码与配置隔离原则
+
+1. **业务代码不直接读环境变量**，统一通过 `app.core.config.settings` 访问。
+2. **新增配置项**：先在 `Settings` 类中加字段，再在 `.env.example` 中加注释样例。
+3. **多环境**：通过 `.env.dev` / `.env.prod` / `.env.test` 切换，pydantic-settings 会自动加载同名文件。
+4. **密钥管理**：`.env` 加入 `.gitignore`，生产环境推荐用 Vault / K8s Secret。
+
+## 7. 数据库迁移
+
+使用 Alembic：
+
+```bash
+# 生成迁移
+alembic revision --autogenerate -m "add users table"
+
+# 应用迁移
+alembic upgrade head
+
+# 回滚
+alembic downgrade -1
+```

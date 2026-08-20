@@ -1,0 +1,103 @@
+# {{ project_title }} 常用命令
+
+.PHONY: help start stop restart logs clean backend-dev frontend-dev middleware start-middleware install db-migrate db-reset db-shell db-backup db-restore{% if only == 'admin' %} lint frontend-build{% endif %}
+
+help:           ## 显示帮助
+	@echo "可用命令："
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
+
+start:          ## 启动所有中间件
+	docker compose up -d
+
+stop:           ## 停止所有中间件
+	docker compose down
+
+restart:        ## 重启所有中间件
+	docker compose restart
+
+logs:           ## 查看中间件日志
+	docker compose logs -f
+
+clean:          ## 清理数据卷（删除数据库所有数据！）
+	docker compose down -v
+
+middleware:     ## 同 start
+	docker compose up -d
+
+start-middleware: ## 同 start
+	docker compose up -d
+
+backend-dev:    ## 本地启动后端（自动维护表结构 + 种子数据）
+{% if only == 'admin' -%}
+	cd backend && cp -n .env.example .env || true && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+{%- else -%}
+	cp -n .env.example .env || true && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+{%- endif %}
+{% if only == 'admin' %}
+frontend-dev:   ## 本地启动前端
+	cd frontend && pnpm install && pnpm dev
+
+frontend-build: ## 构建前端生产版本
+	cd frontend && pnpm build
+{% endif %}
+install:        ## 安装后端依赖
+{% if only == 'admin' -%}
+	cd backend && uv pip install -e ".[dev]" || pip install -e ".[dev]"
+	cd frontend && pnpm install || npm install
+{%- else -%}
+	uv pip install -e ".[dev]" || pip install -e ".[dev]"
+{%- endif %}
+
+# ---------- 数据库维护 ----------
+db-migrate:     ## 自动生成迁移脚本（需先修改模型）
+{% if only == 'admin' -%}
+	cd backend && python -m alembic revision --autogenerate -m "$(msg)"
+{%- else -%}
+	python -m alembic revision --autogenerate -m "$(msg)"
+{%- endif %}
+
+db-upgrade:     ## 应用所有待执行迁移
+{% if only == 'admin' -%}
+	cd backend && python -m alembic upgrade head
+{%- else -%}
+	python -m alembic upgrade head
+{%- endif %}
+
+db-downgrade:   ## 回滚最近一次迁移
+{% if only == 'admin' -%}
+	cd backend && python -m alembic downgrade -1
+{%- else -%}
+	python -m alembic downgrade -1
+{%- endif %}
+
+db-reset:       ## ⚠️ 重置数据库：删除所有表 + 重建（生产环境禁用！）
+{% if only == 'admin' -%}
+	cd backend && python -c "import asyncio; from app.db.session import engine; from app.db.base_class import Base; \
+	asyncio.run(engine.dispose()); \
+	print('drop tables...')" && \
+	docker compose down -v && docker compose up -d && sleep 5 && \
+	cd backend && uvicorn app.main:app --reload &
+	sleep 3 && kill %1 2>/dev/null; echo "数据库已重置"
+{%- else -%}
+	docker compose down -v && docker compose up -d && sleep 5 && \
+	uvicorn app.main:app --reload &
+	sleep 3 && kill %1 2>/dev/null; echo "数据库已重置"
+{%- endif %}
+
+db-shell:       ## 进入数据库 psql 命令行
+	docker compose exec postgres psql -U {{ project_name }} -d {{ project_name }}
+
+db-backup:      ## 备份数据库到 ./backups/
+	@mkdir -p backups
+	docker compose exec -T postgres pg_dump -U {{ project_name }} {{ project_name }} > backups/backup_$(shell date +%Y%m%d_%H%M%S).sql
+	@echo "✅ 备份完成：backups/"
+
+db-restore:     ## 从备份恢复（FILE=backups/backup_xxx.sql）
+	docker compose exec -T postgres psql -U {{ project_name }} -d {{ project_name }} < $(FILE)
+
+{% if only == 'admin' %}
+# ---------- 其他 ----------
+lint:           ## 代码检查（ruff + 前端 eslint）
+	cd backend && ruff check app/ && ruff format --check app/
+	cd frontend && pnpm lint
+{% endif %}

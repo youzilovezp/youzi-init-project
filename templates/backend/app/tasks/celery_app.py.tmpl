@@ -1,0 +1,49 @@
+"""
+Celery 应用入口与任务示例。
+
+启动 worker（在 backend 目录下）：
+    celery -A app.tasks.celery_app worker --loglevel=info
+
+启动定时任务（需要额外配置 beat）：
+    celery -A app.tasks.celery_app beat --loglevel=info
+
+启动 Flower 监控（默认 http://localhost:5555）：
+    celery -A app.tasks.celery_app flower
+"""
+from celery import Celery
+
+from app.core.config import settings
+
+# broker 与 backend 默认复用 Redis；如使用 RabbitMQ，配置 .env 中的 CELERY_BROKER_URL
+broker = settings.CELERY_BROKER_URL or settings.REDIS_URL
+backend = settings.CELERY_RESULT_BACKEND or settings.REDIS_URL
+
+celery_app = Celery(
+    "{{ project_name }}",
+    broker=broker,
+    backend=backend,
+    include=["app.tasks.celery_app"],
+)
+
+celery_app.conf.update(
+    task_serializer="json",
+    accept_content=["json"],
+    result_serializer="json",
+    timezone="Asia/Shanghai",
+    enable_utc=False,
+)
+
+
+# ---------- 示例任务 ----------
+@celery_app.task(name="app.tasks.celery_app.send_welcome_email")
+def send_welcome_email(user_id: int, email: str) -> dict:
+    """异步发送欢迎邮件（示例）。"""
+    # 实际项目中在此调用邮件服务
+    print(f"[Celery] Sending welcome email to {email} (user_id={user_id})")
+    return {"status": "sent", "user_id": user_id}
+
+
+@celery_app.task(name="app.tasks.celery_app.health_check")
+def health_check() -> dict:
+    """周期性健康检查任务，配合 celery beat 使用。"""
+    return {"status": "ok"}

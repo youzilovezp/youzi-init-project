@@ -1,0 +1,53 @@
+# {{ project_title }} 前端
+
+基于 Vue 3 + TypeScript + Vite + Element Plus 的管理系统前端。
+
+## 快速开始
+
+```bash
+# 安装依赖
+pnpm install   # 或 npm install
+
+# 启动开发服务器
+pnpm dev       # 默认 http://localhost:5173
+
+# 构建生产版本
+pnpm build
+```
+
+## 目录结构
+
+```
+frontend/
+├── src/
+│   ├── api/             # 接口层
+│   ├── components/      # 公共组件
+│   ├── config/          # 配置常量
+│   ├── layouts/         # 布局组件
+│   ├── router/          # 路由 + 守卫
+│   ├── stores/          # Pinia
+│   ├── styles/          # 全局样式
+│   ├── types/           # 类型声明
+│   ├── utils/           # 工具函数
+│   ├── views/           # 页面
+│   ├── App.vue
+│   └── main.ts
+├── docs/                # 文档
+├── public/              # 静态资源
+├── .env.development
+├── .env.production
+├── vite.config.ts
+├── tsconfig.json
+└── package.json
+```
+
+## 文档索引
+
+- [架构说明](docs/ARCHITECTURE.md)
+- [技术栈说明](docs/TECH_STACK.md)
+- [配置说明](docs/CONFIG.md)
+- [开发指南](docs/DEVELOPMENT.md)
+
+## License
+
+MIT

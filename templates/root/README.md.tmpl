@@ -1,0 +1,182 @@
+# {{ project_title }}
+{% if only == 'admin' %}
+基于 **FastAPI + Vue 3 + TypeScript + Element Plus** 的完整管理系统脚手架。
+
+## 一键启动
+
+```bash
+# 1. 启动所有中间件
+make start
+
+# 2. 启动后端（新终端）
+make backend-dev
+
+# 3. 启动前端（新终端）
+make frontend-dev
+```
+
+访问：
+
+- 前端：http://localhost:5173
+- 后端 API：http://localhost:8000
+- API 文档：http://localhost:8000/docs
+- 默认账号：`admin` / `admin@123456`
+
+## 项目结构
+
+```
+{{ project_name }}/
+├── backend/                # Python 后端（FastAPI）
+│   ├── app/
+│   ├── alembic/            # 数据库迁移
+│   ├── docs/               # 架构/技术栈/配置/开发 文档
+│   ├── tests/
+│   ├── docker/
+│   ├── pyproject.toml
+│   ├── .env.example
+│   └── README.md
+├── frontend/               # 前端（Vue 3 + TS）
+│   ├── src/
+│   ├── docs/
+│   ├── package.json
+│   ├── vite.config.ts
+│   ├── tsconfig.json
+│   ├── .env.development
+│   └── README.md
+├── docker-compose.yml      # 一键启动中间件
+├── Makefile                # 常用命令
+└── README.md
+```
+
+## 中间件
+
+| 服务 | 端口 | 用途 |
+|---|---|---|
+| PostgreSQL | 5432 | 主数据库 |
+{%- if enable_redis %}
+| Redis | 6379 | 缓存 |
+{%- endif %}
+{%- if enable_rabbitmq %}
+| RabbitMQ | 5672 / 15672 | 消息队列（15672 是管理界面）|
+{%- endif %}
+{%- if enable_minio %}
+| MinIO | 9000 / 9001 | 对象存储（9001 是控制台）|
+{%- endif %}
+
+## 文档导航
+
+### 后端
+- [架构说明](backend/docs/ARCHITECTURE.md)
+- [技术栈说明](backend/docs/TECH_STACK.md)
+- [配置说明](backend/docs/CONFIG.md)
+- [开发指南](backend/docs/DEVELOPMENT.md)
+- [API 文档](backend/docs/API.md)
+
+### 前端
+- [架构说明](frontend/docs/ARCHITECTURE.md)
+- [技术栈说明](frontend/docs/TECH_STACK.md)
+- [配置说明](frontend/docs/CONFIG.md)
+- [开发指南](frontend/docs/DEVELOPMENT.md)
+
+## 常用命令
+
+```bash
+make help                  # 查看所有可用命令
+make start                 # 启动中间件
+make stop                  # 停止中间件
+make logs                  # 查看日志
+make backend-dev           # 本地启动后端
+make frontend-dev          # 本地启动前端
+make clean                 # ⚠️ 删除所有数据
+```
+{% else %}
+基于 **FastAPI + SQLAlchemy 2.0（异步）** 的后端 API 服务脚手架。
+
+## 一键启动
+
+```bash
+# 1. 启动所有中间件
+make start
+
+# 2. 安装依赖并启动开发服务器
+make install
+make backend-dev
+
+# 或者手动：
+uv venv .venv && source .venv/bin/activate
+uv pip install -e ".[dev]"
+uvicorn app.main:app --reload
+```
+
+访问：
+
+- 后端 API：http://localhost:8000
+- API 文档：http://localhost:8000/docs
+- 默认账号：`admin` / `admin@123456`
+
+## 项目结构
+
+```
+{{ project_name }}/
+├── app/                  # 后端应用
+│   ├── api/              # 路由层
+│   ├── core/             # 配置、安全、异常、日志
+│   ├── crud/             # 数据访问
+│   ├── db/               # 数据库连接
+│   ├── middleware/       # 自定义中间件
+│   ├── models/           # ORM 模型
+│   ├── schemas/          # Pydantic 模型
+│   ├── services/         # 业务逻辑
+│   ├── tasks/            # Celery 任务
+│   └── utils/            # 工具
+├── alembic/              # 数据库迁移
+├── docs/                 # 架构、技术栈、配置、开发、API 文档
+├── tests/                # 测试
+├── docker/               # Dockerfile
+├── .env.example          # 环境变量样例
+├── pyproject.toml        # 项目依赖
+├── alembic.ini           # Alembic 配置
+├── docker-compose.yml    # 一键启动中间件
+├── Makefile              # 常用命令
+└── README.md
+```
+
+## 中间件
+
+| 服务 | 端口 | 用途 |
+|---|---|---|
+| PostgreSQL | 5432 | 主数据库 |
+{%- if enable_redis %}
+| Redis | 6379 | 缓存 |
+{%- endif %}
+{%- if enable_rabbitmq %}
+| RabbitMQ | 5672 / 15672 | 消息队列 |
+{%- endif %}
+{%- if enable_minio %}
+| MinIO | 9000 / 9001 | 对象存储 |
+{%- endif %}
+
+## 文档导航
+
+- [架构说明](docs/ARCHITECTURE.md)
+- [技术栈说明](docs/TECH_STACK.md)
+- [配置说明](docs/CONFIG.md)
+- [开发指南](docs/DEVELOPMENT.md)
+- [API 文档](docs/API.md)
+
+## 常用命令
+
+```bash
+make help                  # 查看所有可用命令
+make start                 # 启动中间件
+make stop                  # 停止中间件
+make logs                  # 查看日志
+make backend-dev           # 本地启动后端
+make install               # 安装后端依赖
+make clean                 # ⚠️ 删除所有数据
+```
+{% endif %}
+
+## License
+
+MIT

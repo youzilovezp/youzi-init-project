@@ -1,0 +1,54 @@
+# Python（server 模式）
+.venv/
+venv/
+env/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+logs/
+*.log
+{% if only == 'admin' %}
+# Node（admin 模式）
+node_modules/
+.pnp.*
+.yarn/
+
+# Build（admin 模式）
+dist/
+dist-ssr/
+*.local
+.env.local
+.env.*.local
+
+# Auto-generated（admin 模式）
+auto-imports.d.ts
+components.d.ts
+{% endif %}
+
+# IDE
+.vscode/
+.idea/
+*.swo
+*.swp
+
+# Env
+.env
+.env.local
+
+# Docker
+postgres_data/
+redis_data/
+rabbitmq_data/
+minio_data/
+
+# OS
+.DS_Store
+Thumbs.db

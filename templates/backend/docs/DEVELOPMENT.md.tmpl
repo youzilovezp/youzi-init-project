@@ -1,0 +1,254 @@
+# {{ project_title }} 后端开发指南
+
+## 1. 环境准备
+
+- Python 3.11+
+- uv（推荐）或 pip
+- Docker & Docker Compose（用于启动中间件）
+
+## 2. 安装依赖
+
+```bash
+cd backend
+
+# 推荐：使用 uv
+uv venv .venv
+source .venv/bin/activate
+uv pip install -e ".[dev]"
+
+# 或使用 pip
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+```
+
+## 3. 启动中间件
+
+项目根目录的 `docker-compose.yml` 一键启动所有依赖：
+
+```bash
+# 在工程根目录执行
+make start-middleware
+
+# 或
+docker compose up -d postgres{% if enable_redis %} redis{% endif %}{% if enable_rabbitmq %} rabbitmq{% endif %}{% if enable_minio %} minio{% endif %}
+```
+
+## 4. 配置环境变量
+
+```bash
+cp .env.example .env
+# 编辑 .env，至少修改 SECRET_KEY
+```
+
+## 5. 数据库初始化（自动维护）
+
+后端启动时会**自动维护表结构**，无需手动跑 alembic。具体行为：
+
+| 状态 | 行为 |
+|---|---|
+| 首次启动（数据库无 `alembic_version` 表）| 自动用 `metadata.create_all` 建表 + `alembic stamp head` 打 baseline + 插入种子数据 |
+| 后续启动（已有 `alembic_version` 表）| 自动执行 `alembic upgrade head` + 插入种子数据（仅新增项）|
+| 任何步骤失败 | 记录警告但**不阻塞应用启动** |
+
+如需手动管理迁移：
+
+```bash
+# 修改模型后，生成迁移文件
+make db-migrate msg="add xxx table"
+# 或直接：
+alembic revision --autogenerate -m "add xxx table"
+
+# 应用迁移
+make db-upgrade
+# 或：
+alembic upgrade head
+
+# 回滚
+make db-downgrade
+```
+
+### ⚠️ 重置数据库
+
+```bash
+make db-reset     # 删除数据卷、重建表结构、重新插入种子数据
+make db-backup    # 备份到 backups/ 目录
+make db-restore FILE=backups/backup_xxx.sql
+```
+
+## 6. 启动开发服务器
+
+```bash
+# 方式一：脚本
+./scripts/start.sh
+
+# 方式二：直接
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# 方式三：Makefile（在工程根目录）
+make backend-dev
+```
+
+### VSCode 调试（推荐）
+
+打开 `backend/.vscode/launch.json` 已包含三种配置：
+
+- **FastAPI: Debug Server** —— 按 F5 一键启动并断点调试
+- **FastAPI: Current Test File** —— 调试当前打开的测试
+- **Pytest: All Tests** —— 调试并跑全部测试
+
+> 需要先安装 `ms-python.debugpy` 扩展（启动时 VSCode 会提示）。
+
+启动后访问：
+
+- Swagger UI：http://localhost:8000/docs
+- ReDoc：http://localhost:8000/redoc
+- 健康检查：http://localhost:8000/health
+
+## 7. 默认账号
+
+- 用户名：`admin`（或 `.env` 中 `INITIAL_ADMIN_USERNAME`）
+- 密码：`admin@123456`（或 `.env` 中 `INITIAL_ADMIN_PASSWORD`）
+
+> ⚠️ 生产环境必须立即修改默认密码。
+
+## 8. 添加新的业务模块
+
+以「文章」模块为例：
+
+### 8.1 创建模型（`app/models/article.py`）
+
+```python
+from sqlalchemy import String, Text
+from sqlalchemy.orm import Mapped, mapped_column
+from app.models.base_class import Base, TimestampMixin
+
+
+class Article(Base, TimestampMixin):
+    __tablename__ = "articles"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    content: Mapped[str | None] = mapped_column(Text)
+    author_id: Mapped[int] = mapped_column(index=True)
+```
+
+注册到 `app/models/__init__.py`：
+
+```python
+from app.models.article import Article
+__all__ = [..., "Article"]
+```
+
+### 8.2 创建 Schema（`app/schemas/article.py`）
+
+```python
+from pydantic import BaseModel, ConfigDict
+
+
+class ArticleBase(BaseModel):
+    title: str
+    content: str | None = None
+
+
+class ArticleCreate(ArticleBase):
+    pass
+
+
+class ArticleUpdate(BaseModel):
+    title: str | None = None
+    content: str | None = None
+
+
+class ArticleOut(ArticleBase):
+    id: int
+    author_id: int
+    model_config = ConfigDict(from_attributes=True)
+```
+
+### 8.3 创建 CRUD（`app/crud/article.py`）
+
+```python
+from app.crud.base import CRUDBase
+from app.models.article import Article
+from app.schemas.article import ArticleCreate, ArticleUpdate
+
+article_crud = CRUDBase[Article, ArticleCreate, ArticleUpdate](Article)
+```
+
+### 8.4 创建 Endpoint（`app/api/v1/endpoints/articles.py`）
+
+```python
+from fastapi import APIRouter
+from app.api.deps import CurrentUser, SessionDep
+from app.core.exceptions import NotFoundError
+from app.crud.article import article_crud
+from app.schemas.common import ResponseModel
+from app.schemas.article import ArticleCreate, ArticleOut, ArticleUpdate
+
+router = APIRouter()
+
+
+@router.get("", response_model=ResponseModel[list[ArticleOut]])
+async def list_articles(db: SessionDep, _: CurrentUser):
+    items = await article_crud.list_all(db)
+    return ResponseModel(data=[ArticleOut.model_validate(a) for a in items])
+
+
+@router.post("", response_model=ResponseModel[ArticleOut])
+async def create_article(db: SessionDep, _: CurrentUser, payload: ArticleCreate):
+    obj = await article_crud.create(db, payload)
+    return ResponseModel(data=ArticleOut.model_validate(obj))
+
+
+# ... 更多接口
+```
+
+注册路由（`app/api/v1/router.py`）：
+
+```python
+from app.api.v1.endpoints import articles
+
+api_router.include_router(articles.router, prefix="/articles", tags=["文章管理"])
+```
+
+### 8.5 生成迁移
+
+```bash
+alembic revision --autogenerate -m "add articles table"
+alembic upgrade head
+```
+
+## 9. 测试
+
+```bash
+pytest                 # 全部测试
+pytest -v              # 详细输出
+pytest --cov=app       # 覆盖率
+```
+
+## 10. 代码规范
+
+```bash
+ruff check app/        # 检查
+ruff format app/       # 格式化
+mypy app/              # 类型检查
+```
+
+## 11. 常见问题
+
+### Q: 启动报错 `SECRET_KEY 不能为空`
+
+A: `.env` 文件不存在或未设置 `SECRET_KEY`。`cp .env.example .env` 后修改。
+
+### Q: 数据库连接失败
+
+A: 检查中间件是否启动：`docker compose ps`。检查 `.env` 中数据库主机端口配置。
+
+### Q: 端口 8000 被占用
+
+A: 修改 `.env` 中的 `PORT`，或关闭占用进程：`lsof -i :8000`。
+
+### Q: 如何重置数据库
+
+A: 删除数据卷：`docker compose down -v`，再 `make start-middleware`。

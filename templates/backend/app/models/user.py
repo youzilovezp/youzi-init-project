@@ -1,0 +1,30 @@
+"""用户 ORM 模型。"""
+
+from sqlalchemy import Boolean, ForeignKey, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base_class import Base, TimestampMixin
+
+
+class User(Base, TimestampMixin):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(
+        String(50), unique=True, index=True, nullable=False
+    )
+    email: Mapped[str | None] = mapped_column(String(120), unique=True, index=True)
+    nickname: Mapped[str | None] = mapped_column(String(50))
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_superuser: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    avatar: Mapped[str | None] = mapped_column(String(255))
+    phone: Mapped[str | None] = mapped_column(String(20))
+
+    role_id: Mapped[int | None] = mapped_column(
+        ForeignKey("roles.id", ondelete="SET NULL")
+    )
+    role: Mapped["Role"] = relationship("Role", back_populates="users", lazy="joined")  # noqa: F821
+
+    def __repr__(self) -> str:
+        return f"<User id={self.id} username={self.username}>"

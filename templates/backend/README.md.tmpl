@@ -1,0 +1,82 @@
+# {{ project_title }} 后端
+
+基于 FastAPI + SQLAlchemy 2.0（异步） 的管理系统后端。
+
+## 快速开始
+
+```bash
+# 1. 安装依赖（推荐 uv）
+uv venv .venv && source .venv/bin/activate
+uv pip install -e ".[dev]"
+
+# 2. 配置环境变量
+cp .env.example .env
+# 修改 SECRET_KEY（生产环境必须使用 openssl rand -hex 32）
+
+# 3. 启动中间件（在工程根目录）
+docker compose up -d
+
+# 4. 启动开发服务器
+uvicorn app.main:app --reload
+```
+
+启动后访问：
+
+- API 文档：http://localhost:8000/docs
+- 默认账号：`admin` / `admin@123456`
+
+## 目录结构
+
+```
+backend/
+├── app/
+│   ├── api/             # 路由层
+│   ├── core/            # 配置、安全、异常、日志
+│   ├── crud/            # 数据访问
+│   ├── db/              # 数据库连接
+│   ├── middleware/      # 自定义中间件
+│   ├── models/          # ORM 模型
+│   ├── schemas/         # Pydantic 模型
+│   ├── services/        # 业务逻辑
+│   ├── tasks/           # Celery 任务
+│   ├── utils/           # 工具
+│   ├── deps.py          # 依赖注入（详见 app/api/deps.py）
+│   └── main.py          # 入口
+├── alembic/             # 数据库迁移
+├── docs/                # 架构、技术栈、配置、开发文档
+├── tests/               # 测试
+├── scripts/             # 辅助脚本
+├── docker/              # Dockerfile
+├── .env.example         # 环境变量样例
+└── pyproject.toml
+```
+
+## 文档索引
+
+- [架构说明](docs/ARCHITECTURE.md)
+- [技术栈说明](docs/TECH_STACK.md)
+- [配置说明](docs/CONFIG.md)
+- [开发指南](docs/DEVELOPMENT.md)
+- [API 文档](docs/API.md)
+
+## 常用命令
+
+```bash
+# 启动开发服务器
+uvicorn app.main:app --reload
+
+# 代码检查
+ruff check app/
+ruff format app/
+
+# 测试
+pytest
+
+# 数据库迁移
+alembic revision --autogenerate -m "xxx"
+alembic upgrade head
+```
+
+## License
+
+MIT

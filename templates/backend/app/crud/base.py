@@ -1,0 +1,93 @@
+"""
+通用 CRUD 基类。
+
+提供最常用的增删改查，业务层只继承即可。
+"""
+
+from typing import Any, Generic, TypeVar
+
+from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.base_class import Base
+
+ModelType = TypeVar("ModelType", bound=Base)
+CreateSchemaType = TypeVar("CreateSchemaType", bound=BaseModel)
+UpdateSchemaType = TypeVar("UpdateSchemaType", bound=BaseModel)
+
+
+class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
+    def __init__(self, model: type[ModelType]):
+        self.model = model
+
+    async def get(self, db: AsyncSession, pk: Any) -> ModelType | None:
+        return await db.get(self.model, pk)
+
+    async def list_all(self, db: AsyncSession) -> list[ModelType]:
+        stmt = select(self.model)
+        result = await db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def list_paginated(
+        self,
+        db: AsyncSession,
+        page: int = 1,
+        page_size: int = 20,
+        **filters: Any,
+    ) -> tuple[list[ModelType], int]:
+        stmt = select(self.model)
+        count_stmt = select(self.model)
+
+        for field, value in filters.items():
+            if value is not None:
+                stmt = stmt.where(getattr(self.model, field) == value)
+                count_stmt = count_stmt.where(getattr(self.model, field) == value)
+
+        from sqlalchemy import func
+
+        count_stmt = select(func.count()).select_from(self.model)
+        for field, value in filters.items():
+            if value is not None:
+                count_stmt = count_stmt.where(getattr(self.model, field) == value)
+        total = (await db.execute(count_stmt)).scalar_one()
+
+        stmt = stmt.offset((page - 1) * page_size).limit(page_size)
+        result = await db.execute(stmt)
+        return list(result.scalars().all()), total
+
+    async def create(
+        self, db: AsyncSession, obj_in: CreateSchemaType | dict
+    ) -> ModelType:
+        data = obj_in.model_dump() if isinstance(obj_in, BaseModel) else obj_in
+        db_obj = self.model(**data)
+        db.add(db_obj)
+        await db.commit()
+        await db.refresh(db_obj)
+        return db_obj
+
+    async def update(
+        self,
+        db: AsyncSession,
+        db_obj: ModelType,
+        obj_in: UpdateSchemaType | dict,
+    ) -> ModelType:
+        data = (
+            obj_in.model_dump(exclude_unset=True)
+            if isinstance(obj_in, BaseModel)
+            else obj_in
+        )
+        for field, value in data.items():
+            setattr(db_obj, field, value)
+        db.add(db_obj)
+        await db.commit()
+        await db.refresh(db_obj)
+        return db_obj
+
+    async def delete(self, db: AsyncSession, pk: Any) -> bool:
+        obj = await db.get(self.model, pk)
+        if obj is None:
+            return False
+        await db.delete(obj)
+        await db.commit()
+        return True

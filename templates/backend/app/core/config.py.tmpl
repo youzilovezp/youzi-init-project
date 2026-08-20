@@ -1,0 +1,138 @@
+"""
+应用配置。
+
+设计原则：
+    1. 所有可配置项集中在 Settings 类
+    2. 从环境变量 / .env 文件加载（pydantic-settings）
+    3. 业务代码中只通过 settings.xxx 访问，禁止直接读环境变量
+    4. 多环境通过 .env.dev / .env.prod / .env.test 切换
+
+完整配置项说明请参阅 docs/CONFIG.md。
+"""
+from functools import lru_cache
+from typing import Literal
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    """全局配置。"""
+
+    # ---------- 应用基础 ----------
+    APP_NAME: str = "{{ project_title }}"
+    APP_DESCRIPTION: str = "{{ project_title }} 管理系统后端 API"
+    APP_ENV: Literal["dev", "test", "prod"] = "dev"
+    DEBUG: bool = True
+    API_V1_PREFIX: str = "/api/v1"
+
+    # ---------- 安全 ----------
+    SECRET_KEY: str = Field(..., description="JWT 签名密钥，请使用 openssl rand -hex 32 生成")
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_MINUTES: int = 60 * 24  # 24 小时
+    ACCESS_TOKEN_EXPIRE_SECONDS: int = 60 * 60 * 24
+
+    # ---------- 服务监听 ----------
+    HOST: str = "0.0.0.0"
+    PORT: int = 8000
+    WORKERS: int = 1
+
+    # ---------- 数据库 ----------
+    DB_DRIVER: str = "{{ db_driver }}"  # asyncpg / aiomysql
+    POSTGRES_HOST: str = "localhost"
+    POSTGRES_PORT: int = 5432
+    POSTGRES_USER: str = "{{ project_name }}"
+    POSTGRES_PASSWORD: str = "{{ project_name }}"
+    POSTGRES_DB: str = "{{ project_name }}"
+    MYSQL_HOST: str = "localhost"
+    MYSQL_PORT: int = 3306
+    MYSQL_USER: str = "{{ project_name }}"
+    MYSQL_PASSWORD: str = "{{ project_name }}"
+    MYSQL_DB: str = "{{ project_name }}"
+    DB_ECHO: bool = False
+    DB_POOL_SIZE: int = 10
+    DB_MAX_OVERFLOW: int = 20
+
+    @property
+    def DATABASE_URL(self) -> str:
+        if self.DB_DRIVER in ("asyncpg", "psycopg2"):
+            return (
+                f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
+                f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+            )
+        return (
+            f"mysql+aiomysql://{self.MYSQL_USER}:{self.MYSQL_PASSWORD}"
+            f"@{self.MYSQL_HOST}:{self.MYSQL_PORT}/{self.MYSQL_DB}"
+        )
+{% if enable_redis %}
+    # ---------- Redis ----------
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_DB: int = 0
+    REDIS_PASSWORD: str | None = None
+
+    @property
+    def REDIS_URL(self) -> str:
+        auth = f":{self.REDIS_PASSWORD}@" if self.REDIS_PASSWORD else ""
+        return f"redis://{auth}{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+{% endif %}
+{% if enable_rabbitmq %}
+    # ---------- RabbitMQ ----------
+    RABBITMQ_HOST: str = "localhost"
+    RABBITMQ_PORT: int = 5672
+    RABBITMQ_USER: str = "{{ project_name }}"
+    RABBITMQ_PASSWORD: str = "{{ project_name }}"
+    RABBITMQ_VHOST: str = "/"
+
+    @property
+    def RABBITMQ_URL(self) -> str:
+        return (
+            f"amqp://{self.RABBITMQ_USER}:{self.RABBITMQ_PASSWORD}"
+            f"@{self.RABBITMQ_HOST}:{self.RABBITMQ_PORT}/{self.RABBITMQ_VHOST}"
+        )
+{% endif %}
+{% if enable_minio %}
+    # ---------- MinIO / 对象存储 ----------
+    MINIO_ENDPOINT: str = "localhost:9000"
+    MINIO_ACCESS_KEY: str = "minioadmin"
+    MINIO_SECRET_KEY: str = "minioadmin"
+    MINIO_BUCKET: str = "{{ project_name }}"
+    MINIO_SECURE: bool = False
+{% endif %}
+{% if enable_celery %}
+    # ---------- Celery ----------
+    CELERY_BROKER_URL: str | None = None  # 默认与 REDIS_URL 一致
+    CELERY_RESULT_BACKEND: str | None = None
+{% endif %}
+    # ---------- CORS ----------
+    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+
+    # ---------- 日志 ----------
+    LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: Literal["json", "text"] = "text"
+
+    # ---------- 初始化 ----------
+    INITIAL_ADMIN_USERNAME: str = "admin"
+    INITIAL_ADMIN_PASSWORD: str = "admin@123456"
+    INITIAL_ADMIN_EMAIL: str = "admin@example.com"
+
+    # ---------- 数据库自动维护 ----------
+    AUTO_CREATE_TABLES: bool = True   # 首次启动自动建表
+    AUTO_MIGRATE: bool = True        # 后续启动自动跑 alembic upgrade
+    AUTO_SEED_DATA: bool = True      # 启动时自动插入种子数据（默认管理员等）
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",
+    )
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """单例获取配置对象。"""
+    return Settings()
+
+
+settings = get_settings()

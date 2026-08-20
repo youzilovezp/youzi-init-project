@@ -1,0 +1,67 @@
+# {{ project_title }} 后端技术栈
+
+## 核心框架
+
+| 组件 | 版本 | 用途 | 官方文档 |
+|---|---|---|---|
+| Python | >= 3.11 | 主语言 | https://www.python.org/ |
+| FastAPI | >= 0.110 | Web 框架（异步、自动 OpenAPI）| https://fastapi.tiangolo.com/ |
+| Uvicorn | >= 0.27 | ASGI 服务器 | https://www.uvicorn.org/ |
+| Pydantic | >= 2.6 | 数据校验 | https://docs.pydantic.dev/ |
+| Pydantic Settings | >= 2.2 | 配置加载 | https://docs.pydantic.dev/latest/concepts/pydantic_settings/ |
+
+## 数据库
+
+| 组件 | 版本 | 用途 | 官方文档 |
+|---|---|---|---|
+| SQLAlchemy | >= 2.0 | ORM（异步）| https://docs.sqlalchemy.org/en/20/ |
+| Alembic | >= 1.13 | 数据库迁移 | https://alembic.sqlalchemy.org/ |
+| asyncpg | >= 0.29 | PostgreSQL 异步驱动 | https://magicstack.github.io/asyncpg/ |
+| aiomysql | >= 0.2 | MySQL 异步驱动 | https://aiomysql.readthedocs.io/ |
+
+## 安全
+
+| 组件 | 版本 | 用途 |
+|---|---|---|
+| python-jose | >= 3.3 | JWT 编解码 |
+| passlib[bcrypt] | >= 1.7 | 密码哈希 |
+
+## 中间件（按启用情况）
+
+{% if enable_redis -%}
+| Redis | >= 5.0 | 缓存、限流、Session |
+{% endif -%}
+{% if enable_rabbitmq -%}
+| RabbitMQ | 3.x | 消息队列 |
+{% endif -%}
+{% if enable_celery -%}
+| Celery | >= 5.3 | 分布式异步任务 |
+| Flower | >= 2.0 | Celery 监控 |
+{% endif -%}
+{% if enable_minio -%}
+| MinIO | latest | S3 兼容对象存储 |
+{% endif %}
+
+## 工具
+
+| 组件 | 版本 | 用途 |
+|---|---|---|
+| loguru | >= 0.7 | 日志 |
+| httpx | >= 0.27 | 异步 HTTP 客户端（测试、调用外部 API）|
+| python-dotenv | >= 1.0 | .env 加载 |
+
+## 开发工具
+
+| 组件 | 用途 |
+|---|---|
+| uv / poetry | 依赖管理（推荐 uv）|
+| ruff | 代码风格 + Linter |
+| mypy | 静态类型检查 |
+| pytest + pytest-asyncio | 测试 |
+| Docker | 容器化 |
+
+## 版本约束说明
+
+- `pyproject.toml` 中所有依赖使用 `>=` 最小版本约束，避免锁版本带来的升级成本。
+- 生产环境建议使用 `uv pip compile` 生成 `requirements.lock`。
+- 关键库（SQLAlchemy、Pydantic）的次版本升级需阅读 changelog。
