@@ -34,7 +34,7 @@ class Settings(BaseSettings):
 
     # ---------- 服务监听 ----------
     HOST: str = "0.0.0.0"
-    PORT: int = 8000
+    PORT: int = 199311
     WORKERS: int = 1
 
     # ---------- 数据库 ----------
@@ -105,16 +105,16 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: str | None = None
 {% endif %}
     # ---------- CORS ----------
-    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+    CORS_ORIGINS: list[str] = ["http://localhost:199310", "http://localhost:3000"]
 
     # ---------- 日志 ----------
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: Literal["json", "text"] = "text"
 
     # ---------- 初始化 ----------
-    INITIAL_ADMIN_USERNAME: str = "admin"
-    INITIAL_ADMIN_PASSWORD: str = "admin@123456"
-    INITIAL_ADMIN_EMAIL: str = "admin@example.com"
+    INITIAL_ADMIN_USERNAME: str = "youzi"
+    INITIAL_ADMIN_PASSWORD: str = "youzi@123456"
+    INITIAL_ADMIN_EMAIL: str = "youzi@example.com"
 
     # ---------- 数据库自动维护 ----------
     AUTO_CREATE_TABLES: bool = True   # 首次启动自动建表

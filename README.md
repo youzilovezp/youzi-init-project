@@ -63,10 +63,10 @@ cd my-admin && make frontend-dev               # 终端 B
 
 访问：
 
-- 前端：http://localhost:5173
-- 后端：http://localhost:8000
-- API 文档：http://localhost:8000/docs
-- 默认账号：`admin` / `admin@123456`
+- 前端：http://localhost:199310
+- 后端：http://localhost:199311
+- API 文档：http://localhost:199311/docs
+- 默认账号：`admin` / `youzi@123456`
 
 ## 在 Claude Code 中使用
 

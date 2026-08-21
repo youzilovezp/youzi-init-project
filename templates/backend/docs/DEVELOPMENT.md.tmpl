@@ -83,7 +83,7 @@ make db-restore FILE=backups/backup_xxx.sql
 ./scripts/start.sh
 
 # 方式二：直接
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn app.main:app --reload --host 0.0.0.0 --port 199311
 
 # 方式三：Makefile（在工程根目录）
 make backend-dev
@@ -101,14 +101,14 @@ make backend-dev
 
 启动后访问：
 
-- Swagger UI：http://localhost:8000/docs
-- ReDoc：http://localhost:8000/redoc
-- 健康检查：http://localhost:8000/health
+- Swagger UI：http://localhost:199311/docs
+- ReDoc：http://localhost:199311/redoc
+- 健康检查：http://localhost:199311/health
 
 ## 7. 默认账号
 
 - 用户名：`admin`（或 `.env` 中 `INITIAL_ADMIN_USERNAME`）
-- 密码：`admin@123456`（或 `.env` 中 `INITIAL_ADMIN_PASSWORD`）
+- 密码：`youzi@123456`（或 `.env` 中 `INITIAL_ADMIN_PASSWORD`）
 
 > ⚠️ 生产环境必须立即修改默认密码。
 

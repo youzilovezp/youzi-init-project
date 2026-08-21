@@ -8,7 +8,7 @@ from httpx import AsyncClient
 async def test_login_success(client: AsyncClient):
     resp = await client.post(
         "/api/v1/auth/login",
-        json={"username": "admin", "password": "admin@123456"},
+        json={"username": "admin", "password": "youzi@123456"},
     )
     assert resp.status_code == 200
     data = resp.json()

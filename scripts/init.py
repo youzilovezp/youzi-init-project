@@ -3,9 +3,9 @@
 scaffold-init 初始化脚本
 
 用法（三种模式）：
-    python scripts/init.py <project-name> --only admin        # /yz:init-admin  完整前后端
-    python scripts/init.py <project-name> --only ui           # /yz:init-ui     仅前端
-    python scripts/init.py <project-name> --only server       # /yz:init-server 仅后端
+    python scripts/init.py <project-name> --only admin        # /yz-init-admin  完整前后端
+    python scripts/init.py <project-name> --only ui           # /yz-init-ui     仅前端
+    python scripts/init.py <project-name> --only server       # /yz-init-server 仅后端
 
 示例：
     python scripts/init.py my-admin --only admin \\

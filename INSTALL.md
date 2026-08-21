@@ -15,7 +15,15 @@ cd /Users/zhangpeng/workspace/liaohe/youzi/youzi-init-project
 ./install.sh install
 ```
 
-按提示确认后，会创建 `~/.claude/skills/youzi-init-project` 符号链接。
+按提示确认后，会在 `~/.claude/skills/` 下创建三个独立 skill：
+
+```
+~/.claude/skills/yz-init-admin/    → /yz-init-admin（完整前后端 + 中间件）
+~/.claude/skills/yz-init-server/   → /yz-init-server（后端 + 中间件）
+~/.claude/skills/yz-init-ui/       → /yz-init-ui（仅前端）
+```
+
+共享 `scripts/` 和 `templates/`（符号链接），修改源仓库即时生效。
 
 ### 1.2 一键查看状态
 
@@ -23,7 +31,7 @@ cd /Users/zhangpeng/workspace/liaohe/youzi/youzi-init-project
 ./install.sh status
 ```
 
-输出当前安装状态、关键文件检查、环境检查（python3 / jinja2）。
+输出三个 skill 的安装状态、关键文件检查、环境检查（python3 / jinja2）。
 
 ### 1.3 一键卸载
 
@@ -56,10 +64,10 @@ cd /Users/zhangpeng/workspace/liaohe/youzi/youzi-init-project
 
 脚本会自动完成：
 
-1. 验证源目录（含 SKILL.md）
+1. 验证源目录（含 templates/skills/*/SKILL.md）
 2. 创建 `~/.claude/skills/`
 3. 选择安装方式（link / copy）
-4. 创建符号链接或复制文件
+4. 逐个安装三个 skill（admin / server / ui）
 5. 显示下一步指引
 
 ---
@@ -68,34 +76,47 @@ cd /Users/zhangpeng/workspace/liaohe/youzi/youzi-init-project
 
 如不便运行 `install.sh`，可手工操作。
 
-### 2.1 符号链接（推荐）
+### 2.1 创建三个 skill 目录
 
 ```bash
-mkdir -p ~/.claude/skills
-ln -s /Users/zhangpeng/workspace/liaohe/youzi/youzi-init-project \
-      ~/.claude/skills/youzi-init-project
+mkdir -p ~/.claude/skills/{yz-init-admin,yz-init-server,yz-init-ui}
 ```
 
-### 2.2 直接复制
+### 2.2 复制 SKILL.md
 
 ```bash
-cp -r /Users/zhangpeng/workspace/liaohe/youzi/youzi-init-project \
-      ~/.claude/skills/youzi-init-project
+SKILL_SRC=/Users/zhangpeng/workspace/liaohe/youzi/youzi-init-project
+
+cp $SKILL_SRC/templates/skills/admin/SKILL.md  ~/.claude/skills/yz-init-admin/SKILL.md
+cp $SKILL_SRC/templates/skills/server/SKILL.md ~/.claude/skills/yz-init-server/SKILL.md
+cp $SKILL_SRC/templates/skills/ui/SKILL.md     ~/.claude/skills/yz-init-ui/SKILL.md
 ```
 
-### 2.3 从 git 仓库安装
+### 2.3 共享 scripts 和 templates
 
 ```bash
-git clone https://github.com/your-org/youzi-init-project.git \
-            ~/.claude/skills/youzi-init-project
+SKILL_SRC=/Users/zhangpeng/workspace/liaohe/youzi/youzi-init-project
+
+for s in yz-init-admin yz-init-server yz-init-ui; do
+  ln -s $SKILL_SRC/scripts   ~/.claude/skills/$s/scripts
+  ln -s $SKILL_SRC/templates ~/.claude/skills/$s/templates
+done
+```
+
+### 2.4 从 git 仓库安装
+
+```bash
+git clone https://github.com/your-org/youzi-init-project.git
+cd youzi-init-project
+./install.sh install
 ```
 
 ### 安装后验证
 
 ```bash
-ls ~/.claude/skills/youzi-init-project/SKILL.md
+ls ~/.claude/skills/yz-init-admin/SKILL.md
 # 重启 Claude Code，在对话中输入
-/yz:init-admin --help
+/yz-init-admin --help
 ```
 
 ---
@@ -111,7 +132,7 @@ ls ~/.claude/skills/youzi-init-project/SKILL.md
 ### 手工
 
 ```bash
-rm -rf ~/.claude/skills/youzi-init-project
+rm -rf ~/.claude/skills/yz-init-{admin,server,ui}
 ```
 
 ---
@@ -129,9 +150,12 @@ rm -rf ~/.claude/skills/youzi-init-project
 ./install.sh update
 
 # 或手工
-rm -rf ~/.claude/skills/youzi-init-project
-cp -r /Users/zhangpeng/workspace/liaohe/youzi/youzi-init-project \
-      ~/.claude/skills/youzi-init-project
+SKILL_SRC=/Users/zhangpeng/workspace/liaohe/youzi/youzi-init-project
+for s in yz-init-admin yz-init-server yz-init-ui; do
+  rm -rf ~/.claude/skills/$s/scripts ~/.claude/skills/$s/templates
+  ln -s $SKILL_SRC/scripts   ~/.claude/skills/$s/scripts
+  ln -s $SKILL_SRC/templates ~/.claude/skills/$s/templates
+done
 ```
 
 ---
@@ -140,18 +164,22 @@ cp -r /Users/zhangpeng/workspace/liaohe/youzi/youzi-init-project \
 
 ### 5.1 命令一览
 
+Claude Code 中会显示三个独立命令：
+
 | 命令                     | 范围                                                 | 典型场景                   |
 | ------------------------ | ---------------------------------------------------- | -------------------------- |
-| `/yz:init-admin <name>`  | 后端 + 前端 + 中间件 + **数据库自动维护** + 本地调试 | 新建一套完整管理系统       |
-| `/yz:init-server <name>` | 纯后端 + 中间件 + **数据库自动维护** + 本地调试      | 新增/替换一个后端 API 工程 |
-| `/yz:init-ui <name>`     | 纯前端 + 本地调试                                    | 新增/替换一个前端工程      |
+| `/yz-init-admin <name>`  | 后端 + 前端 + 中间件 + **数据库自动维护** + 本地调试 | 新建一套完整管理系统       |
+| `/yz-init-server <name>` | 后端 + 中间件 + **数据库自动维护** + 本地调试        | 新增/替换一个后端 API 工程 |
+| `/yz-init-ui <name>`     | 纯前端 + 本地调试                                    | 新增/替换一个前端工程      |
+
+> **说明**：Claude Code 不支持 `:` 作为命令字符，所以三个独立 skill 用 `-` 分隔。
 
 ### 5.2 使用步骤
 
 1. **在 Claude Code 对话框中输入命令**
 
    ```
-   /yz:init-admin my-admin
+   /yz-init-admin my-admin
    ```
 
 2. **回答交互式问题**（Claude 通过 AskUserQuestion 收集选项）
@@ -160,7 +188,7 @@ cp -r /Users/zhangpeng/workspace/liaohe/youzi/youzi-init-project \
    - 是否初始化 git？
 
 3. **等待生成完成**
-   - Claude 调用 `scripts/init.py` 渲染模板
+   - Claude 调用 `scripts/init.py --only admin` 渲染模板
    - 输出 `<项目名>/` 目录
    - 在对话中打印启动指引
 
@@ -203,8 +231,8 @@ python3 /Users/zhangpeng/workspace/liaohe/youzi/youzi-init-project/scripts/init.
 ```bash
 cd my-admin
 make start          # 启动 PostgreSQL + Redis + ...
-make backend-dev    # 终端 A：启动后端（http://localhost:8000）
-make frontend-dev   # 终端 B：启动前端（http://localhost:5173）
+make backend-dev    # 终端 A：启动后端（http://localhost:199311）
+make frontend-dev   # 终端 B：启动前端（http://localhost:199310）
 ```
 
 **server 模式**：
@@ -286,11 +314,11 @@ make db-restore FILE=xxx.sql     # 恢复
 # 用 status 检查安装和环境
 ./install.sh status
 
-# 直接跑脚本看输出
-python3 ~/.claude/skills/youzi-init-project/scripts/init.py test --init-git
+# 直接跑脚本看输出（不通过 Claude Code）
+python3 scripts/init.py test --init-git
 
 # 检查 SKILL.md 格式是否正确（YAML frontmatter 必须合法）
-head -5 ~/.claude/skills/youzi-init-project/SKILL.md
+head -5 templates/skills/admin/SKILL.md
 ```
 
 ### Q7: Skill 安装位置一览
@@ -307,6 +335,10 @@ head -5 ~/.claude/skills/youzi-init-project/SKILL.md
 - admin 模式：`backend/.env`
 - server 模式：项目根目录 `.env`
 
+### Q9: 三个 skill 显示不全
+
+**A**: 确认 `~/.claude/skills/` 下有 `yz-init-admin`、`yz-init-server`、`yz-init-ui` 三个目录，每个目录都包含 `SKILL.md`。如果缺失，重新运行 `./install.sh install`。
+
 ---
 
 ## 七、推荐工作流
@@ -317,14 +349,14 @@ cd /Users/zhangpeng/workspace/liaohe/youzi/youzi-init-project
 ./install.sh install
 
 # 2. 平时开发：直接编辑本地仓库
-# 修改 templates/、SKILL.md、scripts/init.py ...
+# 修改 templates/、templates/skills/*/SKILL.md、scripts/init.py ...
 
 # 3. 测试改动
 python3 scripts/init.py test-project
 # 检查 test-project/ 的内容
 
 # 4. 在 Claude Code 中使用
-/yz:init-admin my-real-project
+/yz-init-admin my-real-project
 
 # 5. 当需要发布给团队时
 cd /Users/zhangpeng/workspace/liaohe/youzi/youzi-init-project
@@ -343,16 +375,19 @@ cd youzi-init-project
 
 ```
 youzi-init-project/
-├── SKILL.md              # Skill 描述（/yz:* 触发词）
+├── install.sh            # 一键安装脚本（install/uninstall/update/status）
 ├── README.md             # 项目总览
 ├── INSTALL.md            # 本文档：安装/卸载/更新/使用
-├── install.sh            # 一键安装脚本
 ├── scripts/
 │   └── init.py           # 模板渲染脚本
 ├── templates/
 │   ├── backend/          # 后端模板
 │   ├── frontend/         # 前端模板
-│   └── root/             # 根级中间件 + 文档
+│   ├── root/             # 根级中间件 + 文档
+│   └── skills/           # 三个独立 SKILL.md
+│       ├── admin/SKILL.md
+│       ├── server/SKILL.md
+│       └── ui/SKILL.md
 └── examples/             # 示例项目
 ```
 

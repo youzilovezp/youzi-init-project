@@ -20,7 +20,7 @@
 |---|---|---|---|
 | `VITE_APP_TITLE` | str | - | 网站标题 |
 | `VITE_API_BASE_URL` | str | `/api/v1` | API 基础路径 |
-| `VITE_PROXY_TARGET` | str | `http://localhost:8000` | 开发环境代理目标 |
+| `VITE_PROXY_TARGET` | str | `http://localhost:199311` | 开发环境代理目标 |
 | `VITE_TOKEN_KEY` | str | `access_token` | localStorage 中 token 的 key |
 
 ## 4. 业务代码中访问
@@ -57,7 +57,7 @@ vite build --mode staging
 server: {
   proxy: {
     '/api': {
-      target: 'http://localhost:8000',
+      target: 'http://localhost:199311',
       changeOrigin: true,
     },
   },
