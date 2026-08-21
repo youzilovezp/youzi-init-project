@@ -2,7 +2,7 @@
 
 <img src="assets/logo.svg" width="96" alt="youzi-init-project logo"/>
 
-# 🍊 youzi-init-project · 一键脚手架 · 三种粒度
+# 🍊 youzi-init-project · 一站式项目脚手架
 
 **`/yz-init-admin <name>` → 完整前后端 + 中间件 + 数据库自动维护 → 开箱即跑**
 
