@@ -1,79 +1,109 @@
 # youzi-init-project
 
-> 一键初始化完整管理系统 / 前端 / 后端工程的 Claude Code Skill 仓库。
+> 一键初始化完整管理系统 / 前端 / 后端工程的 Claude Code Skill。
 
-为非技术背景或新入职工程师提供一个"开箱即用"的脚手架，支持三种粒度按需生成：
+为非技术背景或新入职工程师提供"开箱即用"的脚手架，三个命令搞定三种粒度。
 
-- ✅ **后端**：FastAPI + SQLAlchemy 2.0（异步）+ Pydantic v2 + JWT + Alembic
-- ✅ **前端**：Vue 3 + TypeScript + Vite + Pinia + Element Plus
-- ✅ **中间件**：PostgreSQL、Redis（可选）、RabbitMQ（可选）、MinIO（可选）、Celery（可选）
-- ✅ **代码与配置隔离**
-- ✅ **自带文档**：架构、技术栈、配置、开发、API 五件套
-- ✅ **数据库表结构自动维护**：首次启动自动 create_all + alembic stamp，后续启动自动 alembic upgrade
-- ✅ **Docker Compose 一键启动**所有依赖
+## 三个命令
 
-## 命令一览（安装后 Claude Code 中可见）
-
-| 命令                     | 范围                                             | 典型场景                   |
-| ------------------------ | ------------------------------------------------ | -------------------------- |
-| `/yz-init-admin <name>`  | 后端 + 前端 + 中间件 + 数据库自动维护 + 本地调试 | 新建一套完整管理系统       |
-| `/yz-init-server <name>` | 后端 + 中间件 + 数据库自动维护 + 本地调试        | 新增/替换一个后端 API 工程 |
-| `/yz-init-ui <name>`     | 纯前端 + 本地调试                                | 新增/替换一个前端工程      |
+| 命令                     | 输出                                                 |
+| ------------------------ | ---------------------------------------------------- |
+| `/yz-init-admin <name>`  | 后端 + 前端 + 中间件 + **数据库自动维护** + 本地调试 |
+| `/yz-init-server <name>` | 后端 + 中间件 + **数据库自动维护** + 本地调试        |
+| `/yz-init-ui <name>`     | 纯前端 + 本地调试                                    |
 
 > **说明**：Claude Code 不支持 `:` 作为 slash command 字符，所以三个独立 skill 用 `-` 分隔。
 
-## 🚀 一键安装（推荐）
+## 它能做什么
+
+- **后端**：FastAPI + SQLAlchemy 2.0（异步）+ Pydantic v2 + JWT + Alembic
+- **前端**：Vue 3 + TypeScript + Vite + Pinia + Element Plus
+- **中间件**：PostgreSQL、Redis、RabbitMQ、MinIO、Celery（按需启用）
+- **代码与配置隔离**：通过 `.env` + pydantic-settings / Vite env 管理
+- **自带文档**：每个生成项目内含架构/技术栈/配置/开发/API 文档
+- **数据库自动维护**：首次启动自动建表 + stamp，后续启动自动跑迁移
+
+## 先决条件
+
+| 工具           | 用途         | 安装                             |
+| -------------- | ------------ | -------------------------------- |
+| python3 ≥ 3.11 | 运行 init.py | 系统包管理器                     |
+| jinja2         | 模板渲染     | `pip install jinja2`             |
+| Docker         | 启动中间件   | [docker.com](https://docker.com) |
+| Claude Code    | 调用 skill   | claude.ai/code                   |
+
+## 三步开始
+
+### 1. 安装
 
 ```bash
-cd /Users/zhangpeng/workspace/liaohe/youzi/youzi-init-project
+cd /path/to/youzi-init-project
 ./install.sh install
 ```
 
-`install.sh` 默认会创建三个独立 skill：
+按提示确认后，会创建三个独立 skill 到 `~/.claude/skills/`。
+
+### 2. 在 Claude Code 中使用
 
 ```
-~/.claude/skills/yz-init-admin/    → /yz-init-admin
-~/.claude/skills/yz-init-server/   → /yz-init-server
-~/.claude/skills/yz-init-ui/       → /yz-init-ui
+/yz-init-admin my-app
 ```
 
-共享 scripts 和 templates（符号链接），修改源仓库即时生效。
+按对话中的问题回答选择，skill 会自动生成 `my-app/` 目录。
 
-`install.sh` 支持四个子命令：`install` / `uninstall` / `update` / `status`，详见 [INSTALL.md](INSTALL.md)。
-
-## 快速体验（命令行方式）
+### 3. 启动新项目
 
 ```bash
-# 1. 安装 jinja2（如果尚未安装）
-pip install jinja2
-
-# 2. 完整前后端
-python /path/to/youzi-init-project/scripts/init.py my-admin
-
-# 仅前端
-python /path/to/youzi-init-project/scripts/init.py my-web --only ui
-
-# 仅后端（后端 + 中间件）
-python /path/to/youzi-init-project/scripts/init.py my-api --only server
-
-# 3. 进入项目
-cd my-admin && make start && make backend-dev  # 终端 A
-cd my-admin && make frontend-dev               # 终端 B
+cd my-app
+make start          # 启动 PostgreSQL + Redis + ...
+make backend-dev    # 终端 A：启动后端（http://localhost:199311）
+make frontend-dev   # 终端 B：启动前端（http://localhost:199310）
 ```
 
-访问：
+## 常用地址
 
-- 前端：http://localhost:199310
-- 后端：http://localhost:199311
-- API 文档：http://localhost:199311/docs
-- 默认账号：`admin` / `youzi@123456`
+| 服务     | 地址                         |
+| -------- | ---------------------------- |
+| 前端     | http://localhost:199310      |
+| 后端 API | http://localhost:199311      |
+| API 文档 | http://localhost:199311/docs |
+| 默认账号 | `youzi` / `youzi@123456`     |
 
-## 在 Claude Code 中使用
+> ⚠️ 生产环境必须修改默认账号和 `SECRET_KEY`。
 
-```text
-/yz-init-admin my-admin
-/yz-init-server my-api
-/yz-init-ui my-web
+## 三个模式速览
+
+| 模式       | 适合              | 启动命令 |
+| ---------- | ----------------- | -------- |
+| **admin**  | 新建一套完整系统  |          | `make backend-dev` + `make frontend-dev` |
+| **server** | 新增/替换后端 API |          | `make backend-dev`                       |
+| **ui**     | 新增/替换前端     |          | `pnpm dev`                               |
+
+## 详细文档
+
+| 文档                                                                 | 内容                                     |
+| -------------------------------------------------------------------- | ---------------------------------------- |
+| [INSTALL.md](INSTALL.md)                                             | 安装 / 卸载 / 更新 / 高级选项 / 常见问题 |
+| [templates/skills/admin/SKILL.md](templates/skills/admin/SKILL.md)   | admin 模式的完整说明                     |
+| [templates/skills/server/SKILL.md](templates/skills/server/SKILL.md) | server 模式的完整说明                    |
+| [templates/skills/ui/SKILL.md](templates/skills/ui/SKILL.md)         | ui 模式的完整说明                        |
+
+## 仓库结构
+
+```
+youzi-init-project/
+├── install.sh            # 一键安装脚本
+├── README.md             # 本文档（项目总览）
+├── INSTALL.md            # 运维参考
+├── scripts/
+│   └── init.py           # 模板渲染脚本
+└── templates/
+    ├── backend/          # 后端模板
+    ├── frontend/         # 前端模板
+    ├── root/             # 根级（中间件 + 文档）
+    └── skills/           # 三个独立 SKILL.md
 ```
 
-详细使用方式见 [INSTALL.md](INSTALL.md)。
+## 许可证
+
+MIT
