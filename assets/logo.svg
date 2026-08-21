@@ -1,138 +1,120 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240" role="img" aria-label="Youzi Init Project - Cute Pomelo Logo">
   <title>Youzi Init Project</title>
-  <desc>可爱卡通柚子 logo</desc>
+  <desc>现代扁平插画风柚子 logo</desc>
 
   <defs>
-    <!-- 主果皮：奶油黄渐变（高级感） -->
-    <radialGradient id="peel" cx="38%" cy="30%" r="80%">
-      <stop offset="0%"   stop-color="#FFF8D4"/>
-      <stop offset="30%"  stop-color="#FAE896"/>
-      <stop offset="60%"  stop-color="#E8CE54"/>
-      <stop offset="90%"  stop-color="#B69A2E"/>
-      <stop offset="100%" stop-color="#7E6B1F"/>
+    <!-- 果皮：清爽明黄渐变 -->
+    <radialGradient id="peel" cx="40%" cy="32%" r="78%">
+      <stop offset="0%"   stop-color="#FFEC8A"/>
+      <stop offset="40%"  stop-color="#FFD93D"/>
+      <stop offset="80%"  stop-color="#FFA94D"/>
+      <stop offset="100%" stop-color="#F77F2A"/>
     </radialGradient>
 
-    <!-- 大柔光 -->
-    <radialGradient id="softGlow" cx="30%" cy="22%" r="42%">
-      <stop offset="0%"   stop-color="#FFFFFF" stop-opacity="0.55"/>
-      <stop offset="60%"  stop-color="#FFFFFF" stop-opacity="0.1"/>
+    <!-- 顶部柔光 -->
+    <radialGradient id="topLight" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#FFFFFF" stop-opacity="0.75"/>
       <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
     </radialGradient>
 
-    <!-- 顶部小高光（精致感） -->
-    <radialGradient id="topShine" cx="50%" cy="50%" r="50%">
-      <stop offset="0%"   stop-color="#FFFFFF" stop-opacity="0.85"/>
-      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    <!-- 底部暖色反光 -->
+    <radialGradient id="botGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#FFAA6A" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#FFAA6A" stop-opacity="0"/>
     </radialGradient>
 
-    <!-- 底部反光 -->
-    <radialGradient id="bottomGlow" cx="50%" cy="50%" r="50%">
-      <stop offset="0%"   stop-color="#FFF6BC" stop-opacity="0.6"/>
-      <stop offset="100%" stop-color="#FFF6BC" stop-opacity="0"/>
+    <!-- 眼睛渐变 -->
+    <radialGradient id="iris" cx="40%" cy="35%" r="65%">
+      <stop offset="0%"   stop-color="#6B5BFF"/>
+      <stop offset="60%"  stop-color="#3D2DAA"/>
+      <stop offset="100%" stop-color="#1A0F4D"/>
     </radialGradient>
 
-    <!-- 叶片渐变（多层） -->
-    <linearGradient id="leafGrad" x1="20%" y1="0%" x2="80%" y2="100%">
-      <stop offset="0%"   stop-color="#B7E065"/>
-      <stop offset="60%"  stop-color="#7BB844"/>
-      <stop offset="100%" stop-color="#4A7E22"/>
-    </linearGradient>
-
-    <linearGradient id="leafGrad2" x1="80%" y1="0%" x2="20%" y2="100%">
-      <stop offset="0%"   stop-color="#9BD158"/>
-      <stop offset="100%" stop-color="#3F6E1C"/>
+    <!-- 叶子 -->
+    <linearGradient id="leaf" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#A8E063"/>
+      <stop offset="100%" stop-color="#56AB55"/>
     </linearGradient>
 
     <!-- 腮红 -->
     <radialGradient id="blush" cx="50%" cy="50%" r="50%">
-      <stop offset="0%"   stop-color="#FF8DA0" stop-opacity="0.55"/>
-      <stop offset="100%" stop-color="#FF8DA0" stop-opacity="0"/>
+      <stop offset="0%"   stop-color="#FF6B9D" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#FF6B9D" stop-opacity="0"/>
     </radialGradient>
 
-    <!-- 内阴影（深度） -->
-    <radialGradient id="innerShade" cx="50%" cy="100%" r="80%">
-      <stop offset="70%"  stop-color="#7E6B1F" stop-opacity="0"/>
-      <stop offset="100%" stop-color="#7E6B1F" stop-opacity="0.35"/>
-    </radialGradient>
-
-    <!-- 柔和落地阴影 -->
-    <radialGradient id="groundShadow" cx="50%" cy="50%" r="50%">
+    <!-- 软阴影 -->
+    <radialGradient id="softShadow" cx="50%" cy="50%" r="50%">
       <stop offset="0%"   stop-color="#000000" stop-opacity="0.18"/>
       <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
     </radialGradient>
-
-    <!-- 果皮油胞纹路（细密点） -->
-    <pattern id="peelTexture" x="0" y="0" width="14" height="14" patternUnits="userSpaceOnUse">
-      <circle cx="3"  cy="4"  r="0.8" fill="#8B7424" opacity="0.18"/>
-      <circle cx="10" cy="9"  r="0.8" fill="#8B7424" opacity="0.18"/>
-      <circle cx="6"  cy="11" r="0.8" fill="#8B7424" opacity="0.18"/>
-    </pattern>
   </defs>
 
-  <!-- 缩放并居中，留出呼吸空间 -->
+  <!-- 缩放并居中 -->
   <g transform="translate(48 48) scale(0.6)">
-    <!-- 落地阴影（淡淡的椭圆） -->
-    <ellipse cx="120" cy="210" rx="68" ry="9" fill="url(#groundShadow)"/>
+    <!-- 落地阴影 -->
+    <ellipse cx="120" cy="218" rx="62" ry="8" fill="url(#softShadow)"/>
 
-    <!-- 顶部凹陷窝 -->
-    <ellipse cx="120" cy="64" rx="11" ry="4" fill="#9F8728" opacity="0.55"/>
+    <!-- 顶部凹陷 -->
+    <ellipse cx="120" cy="66" rx="10" ry="3.5" fill="#D68910" opacity="0.55"/>
 
-    <!-- 主叶（左） -->
-    <g transform="translate(116 60) rotate(-22)">
+    <!-- 叶子（单片优雅） -->
+    <g transform="translate(122 62) rotate(-20)">
       <path d="M 0 0
-               C -18 -4, -34 -22, -32 -44
-               C -20 -46, -2 -36, 2 -10 Z"
-            fill="url(#leafGrad)" stroke="#3F6E1C" stroke-width="2" stroke-linejoin="round"/>
+               C -22 -6, -38 -24, -36 -46
+               C -22 -48, -4 -38, 2 -12 Z"
+            fill="url(#leaf)"/>
       <!-- 叶脉 -->
-      <path d="M -2 -4 Q -16 -20, -28 -38" fill="none" stroke="#3F6E1C" stroke-width="1.4" opacity="0.55" stroke-linecap="round"/>
-      <path d="M -8 -10 Q -18 -14, -24 -10" fill="none" stroke="#3F6E1C" stroke-width="0.8" opacity="0.4" stroke-linecap="round"/>
-      <path d="M -12 -18 Q -22 -22, -26 -20" fill="none" stroke="#3F6E1C" stroke-width="0.8" opacity="0.4" stroke-linecap="round"/>
-      <!-- 高光 -->
-      <path d="M -10 -16 Q -20 -28, -24 -38" fill="none" stroke="#D6F09A" stroke-width="1.2" opacity="0.7" stroke-linecap="round"/>
-    </g>
-
-    <!-- 副叶（右，更小） -->
-    <g transform="translate(124 60) rotate(28)">
-      <path d="M 0 0
-               C 12 -4, 22 -16, 20 -30
-               C 12 -32, 2 -22, 0 -8 Z"
-            fill="url(#leafGrad2)" stroke="#3F6E1C" stroke-width="1.6" stroke-linejoin="round"/>
-      <path d="M 2 -4 Q 12 -14, 18 -24" fill="none" stroke="#3F6E1C" stroke-width="1" opacity="0.55" stroke-linecap="round"/>
+      <path d="M -2 -4 Q -16 -22, -30 -40" fill="none" stroke="#3D7A2D" stroke-width="1.4" opacity="0.55" stroke-linecap="round"/>
+      <path d="M -10 -14 Q -22 -18, -28 -16" fill="none" stroke="#3D7A2D" stroke-width="0.8" opacity="0.45" stroke-linecap="round"/>
+      <path d="M -14 -24 Q -24 -28, -30 -26" fill="none" stroke="#3D7A2D" stroke-width="0.8" opacity="0.45" stroke-linecap="round"/>
+      <!-- 叶片高光 -->
+      <path d="M -14 -14 Q -24 -26, -28 -36" fill="none" stroke="#D6F2A0" stroke-width="1.2" opacity="0.7" stroke-linecap="round"/>
     </g>
 
     <!-- 短果柄 -->
-    <path d="M 117 56 Q 120 50, 123 56 L 123 64 L 117 64 Z" fill="#8B6A3C" stroke="#5C4424" stroke-width="1.4" stroke-linejoin="round"/>
+    <rect x="118" y="58" width="4" height="8" rx="1.5" fill="#8B6A3C"/>
 
     <!-- 柚子主体 -->
     <g>
       <!-- 主色 -->
-      <circle cx="120" cy="128" r="78" fill="url(#peel)" stroke="#7E6B1F" stroke-width="2"/>
-      <!-- 油胞纹理 -->
-      <circle cx="120" cy="128" r="78" fill="url(#peelTexture)" clip-path="circle(78px at 120px 128px)"/>
-      <!-- 底部反光 -->
-      <circle cx="120" cy="128" r="78" fill="url(#bottomGlow)"/>
-      <!-- 内阴影深度 -->
-      <circle cx="120" cy="128" r="78" fill="url(#innerShade)"/>
-      <!-- 大柔光（左上） -->
-      <circle cx="120" cy="128" r="78" fill="url(#softGlow)"/>
-      <!-- 顶部小高光 -->
-      <ellipse cx="92" cy="86" rx="14" ry="9" fill="url(#topShine)"/>
+      <circle cx="120" cy="128" r="78" fill="url(#peel)"/>
+      <!-- 底部暖反光 -->
+      <circle cx="120" cy="128" r="78" fill="url(#botGlow)"/>
+      <!-- 左上柔光 -->
+      <ellipse cx="92" cy="84" rx="32" ry="22" fill="url(#topLight)"/>
       <!-- 反光点 -->
-      <circle cx="86" cy="84" r="2.5" fill="#FFFFFF" opacity="0.9"/>
-      <circle cx="86" cy="84" r="1"   fill="#FFFFFF"/>
+      <ellipse cx="86" cy="78" rx="6" ry="4" fill="#FFFFFF" opacity="0.85"/>
+      <circle cx="86" cy="78" r="1.5" fill="#FFFFFF"/>
     </g>
 
     <!-- 腮红 -->
-    <ellipse cx="70"  cy="150" rx="15" ry="9" fill="url(#blush)"/>
-    <ellipse cx="170" cy="150" rx="15" ry="9" fill="url(#blush)"/>
+    <ellipse cx="72"  cy="148" rx="16" ry="10" fill="url(#blush)"/>
+    <ellipse cx="168" cy="148" rx="16" ry="10" fill="url(#blush)"/>
 
-    <!-- 眼睛：弯弯笑眼（粗细变化，更精致） -->
-    <path d="M 76 134 Q 92 120, 108 134" fill="none" stroke="#3A2A10" stroke-width="5.5" stroke-linecap="round"/>
-    <path d="M 132 134 Q 148 120, 164 134" fill="none" stroke="#3A2A10" stroke-width="5.5" stroke-linecap="round"/>
+    <!-- 大眼睛（睁开的、有神的） -->
+    <!-- 左眼 -->
+    <g>
+      <ellipse cx="92" cy="132" rx="14" ry="16" fill="url(#iris)"/>
+      <!-- 瞳孔 -->
+      <ellipse cx="92" cy="133" rx="5" ry="11" fill="#0A0420"/>
+      <!-- 大高光 -->
+      <ellipse cx="86" cy="123" rx="5" ry="6" fill="#FFFFFF"/>
+      <!-- 小高光 -->
+      <circle cx="98" cy="139" r="2" fill="#FFFFFF" opacity="0.85"/>
+      <!-- 眼睑淡阴影（下方） -->
+      <path d="M 80 142 Q 92 148, 104 142" fill="none" stroke="#7A4D1F" stroke-width="2" stroke-linecap="round" opacity="0.35"/>
+    </g>
+    <!-- 右眼 -->
+    <g>
+      <ellipse cx="148" cy="132" rx="14" ry="16" fill="url(#iris)"/>
+      <ellipse cx="148" cy="133" rx="5" ry="11" fill="#0A0420"/>
+      <ellipse cx="142" cy="123" rx="5" ry="6" fill="#FFFFFF"/>
+      <circle cx="154" cy="139" r="2" fill="#FFFFFF" opacity="0.85"/>
+      <path d="M 136 142 Q 148 148, 160 142" fill="none" stroke="#7A4D1F" stroke-width="2" stroke-linecap="round" opacity="0.35"/>
+    </g>
 
-    <!-- 嘴巴：温和微笑 -->
-    <path d="M 104 164 Q 120 180, 136 164" fill="none" stroke="#3A2A10" stroke-width="4.5" stroke-linecap="round"/>
-    <!-- 小舌头（暗粉，更精致） -->
-    <path d="M 114 170 Q 120 178, 126 170 Q 123 174, 120 175 Q 117 174, 114 170 Z" fill="#E66E84" opacity="0.9"/>
+    <!-- 小嘴（俏皮的 o 嘴） -->
+    <ellipse cx="120" cy="166" rx="7" ry="6" fill="#5C2A20"/>
+    <ellipse cx="120" cy="168" rx="5" ry="3.5" fill="#FF6F8E"/>
   </g>
 </svg>

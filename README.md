@@ -1,10 +1,17 @@
 <div align="center">
-  <img src="assets/logo.svg" alt="Youzi Init Project" width="96">
+
+<img src="assets/logo.svg" width="96" alt="youzi-init-project logo"/>
+
+# 🍊 youzi-init-project · 一键脚手架 · 三种粒度
+
+**`/yz-init-admin <name>` → 完整前后端 + 中间件 + 数据库自动维护 → 开箱即跑**
+
+![License](https://img.shields.io/badge/License-MIT-orange.svg)
+![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)
+![Python](https://img.shields.io/badge/Python-stdlib_only-3776AB.svg)
+![Claude Code](https://img.shields.io/badge/Claude%20Code-Skill-blueviolet.svg)
+
 </div>
-
-# youzi-init-project
-
-> 一键初始化完整管理系统 / 前端 / 后端工程的 Claude Code Skill。
 
 为非技术背景或新入职工程师提供"开箱即用"的脚手架，三个命令搞定三种粒度。
 
