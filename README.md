@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="assets/logo.svg" alt="Youzi Init Project" width="180">
+</div>
+
 # youzi-init-project
 
 > 一键初始化完整管理系统 / 前端 / 后端工程的 Claude Code Skill。
