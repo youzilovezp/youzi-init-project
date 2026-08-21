@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/logo.svg" alt="Youzi Init Project" width="180">
+  <img src="assets/logo.svg" alt="Youzi Init Project" width="96">
 </div>
 
 # youzi-init-project

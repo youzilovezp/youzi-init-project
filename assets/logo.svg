@@ -69,67 +69,70 @@
     </pattern>
   </defs>
 
-  <!-- 落地阴影（淡淡的椭圆） -->
-  <ellipse cx="120" cy="210" rx="68" ry="9" fill="url(#groundShadow)"/>
+  <!-- 缩放并居中，留出呼吸空间 -->
+  <g transform="translate(48 48) scale(0.6)">
+    <!-- 落地阴影（淡淡的椭圆） -->
+    <ellipse cx="120" cy="210" rx="68" ry="9" fill="url(#groundShadow)"/>
 
-  <!-- 顶部凹陷窝 -->
-  <ellipse cx="120" cy="64" rx="11" ry="4" fill="#9F8728" opacity="0.55"/>
+    <!-- 顶部凹陷窝 -->
+    <ellipse cx="120" cy="64" rx="11" ry="4" fill="#9F8728" opacity="0.55"/>
 
-  <!-- 主叶（左） -->
-  <g transform="translate(116 60) rotate(-22)">
-    <path d="M 0 0
-             C -18 -4, -34 -22, -32 -44
-             C -20 -46, -2 -36, 2 -10 Z"
-          fill="url(#leafGrad)" stroke="#3F6E1C" stroke-width="2" stroke-linejoin="round"/>
-    <!-- 叶脉 -->
-    <path d="M -2 -4 Q -16 -20, -28 -38" fill="none" stroke="#3F6E1C" stroke-width="1.4" opacity="0.55" stroke-linecap="round"/>
-    <path d="M -8 -10 Q -18 -14, -24 -10" fill="none" stroke="#3F6E1C" stroke-width="0.8" opacity="0.4" stroke-linecap="round"/>
-    <path d="M -12 -18 Q -22 -22, -26 -20" fill="none" stroke="#3F6E1C" stroke-width="0.8" opacity="0.4" stroke-linecap="round"/>
-    <!-- 高光 -->
-    <path d="M -10 -16 Q -20 -28, -24 -38" fill="none" stroke="#D6F09A" stroke-width="1.2" opacity="0.7" stroke-linecap="round"/>
+    <!-- 主叶（左） -->
+    <g transform="translate(116 60) rotate(-22)">
+      <path d="M 0 0
+               C -18 -4, -34 -22, -32 -44
+               C -20 -46, -2 -36, 2 -10 Z"
+            fill="url(#leafGrad)" stroke="#3F6E1C" stroke-width="2" stroke-linejoin="round"/>
+      <!-- 叶脉 -->
+      <path d="M -2 -4 Q -16 -20, -28 -38" fill="none" stroke="#3F6E1C" stroke-width="1.4" opacity="0.55" stroke-linecap="round"/>
+      <path d="M -8 -10 Q -18 -14, -24 -10" fill="none" stroke="#3F6E1C" stroke-width="0.8" opacity="0.4" stroke-linecap="round"/>
+      <path d="M -12 -18 Q -22 -22, -26 -20" fill="none" stroke="#3F6E1C" stroke-width="0.8" opacity="0.4" stroke-linecap="round"/>
+      <!-- 高光 -->
+      <path d="M -10 -16 Q -20 -28, -24 -38" fill="none" stroke="#D6F09A" stroke-width="1.2" opacity="0.7" stroke-linecap="round"/>
+    </g>
+
+    <!-- 副叶（右，更小） -->
+    <g transform="translate(124 60) rotate(28)">
+      <path d="M 0 0
+               C 12 -4, 22 -16, 20 -30
+               C 12 -32, 2 -22, 0 -8 Z"
+            fill="url(#leafGrad2)" stroke="#3F6E1C" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="M 2 -4 Q 12 -14, 18 -24" fill="none" stroke="#3F6E1C" stroke-width="1" opacity="0.55" stroke-linecap="round"/>
+    </g>
+
+    <!-- 短果柄 -->
+    <path d="M 117 56 Q 120 50, 123 56 L 123 64 L 117 64 Z" fill="#8B6A3C" stroke="#5C4424" stroke-width="1.4" stroke-linejoin="round"/>
+
+    <!-- 柚子主体 -->
+    <g>
+      <!-- 主色 -->
+      <circle cx="120" cy="128" r="78" fill="url(#peel)" stroke="#7E6B1F" stroke-width="2"/>
+      <!-- 油胞纹理 -->
+      <circle cx="120" cy="128" r="78" fill="url(#peelTexture)" clip-path="circle(78px at 120px 128px)"/>
+      <!-- 底部反光 -->
+      <circle cx="120" cy="128" r="78" fill="url(#bottomGlow)"/>
+      <!-- 内阴影深度 -->
+      <circle cx="120" cy="128" r="78" fill="url(#innerShade)"/>
+      <!-- 大柔光（左上） -->
+      <circle cx="120" cy="128" r="78" fill="url(#softGlow)"/>
+      <!-- 顶部小高光 -->
+      <ellipse cx="92" cy="86" rx="14" ry="9" fill="url(#topShine)"/>
+      <!-- 反光点 -->
+      <circle cx="86" cy="84" r="2.5" fill="#FFFFFF" opacity="0.9"/>
+      <circle cx="86" cy="84" r="1"   fill="#FFFFFF"/>
+    </g>
+
+    <!-- 腮红 -->
+    <ellipse cx="70"  cy="150" rx="15" ry="9" fill="url(#blush)"/>
+    <ellipse cx="170" cy="150" rx="15" ry="9" fill="url(#blush)"/>
+
+    <!-- 眼睛：弯弯笑眼（粗细变化，更精致） -->
+    <path d="M 76 134 Q 92 120, 108 134" fill="none" stroke="#3A2A10" stroke-width="5.5" stroke-linecap="round"/>
+    <path d="M 132 134 Q 148 120, 164 134" fill="none" stroke="#3A2A10" stroke-width="5.5" stroke-linecap="round"/>
+
+    <!-- 嘴巴：温和微笑 -->
+    <path d="M 104 164 Q 120 180, 136 164" fill="none" stroke="#3A2A10" stroke-width="4.5" stroke-linecap="round"/>
+    <!-- 小舌头（暗粉，更精致） -->
+    <path d="M 114 170 Q 120 178, 126 170 Q 123 174, 120 175 Q 117 174, 114 170 Z" fill="#E66E84" opacity="0.9"/>
   </g>
-
-  <!-- 副叶（右，更小） -->
-  <g transform="translate(124 60) rotate(28)">
-    <path d="M 0 0
-             C 12 -4, 22 -16, 20 -30
-             C 12 -32, 2 -22, 0 -8 Z"
-          fill="url(#leafGrad2)" stroke="#3F6E1C" stroke-width="1.6" stroke-linejoin="round"/>
-    <path d="M 2 -4 Q 12 -14, 18 -24" fill="none" stroke="#3F6E1C" stroke-width="1" opacity="0.55" stroke-linecap="round"/>
-  </g>
-
-  <!-- 短果柄 -->
-  <path d="M 117 56 Q 120 50, 123 56 L 123 64 L 117 64 Z" fill="#8B6A3C" stroke="#5C4424" stroke-width="1.4" stroke-linejoin="round"/>
-
-  <!-- 柚子主体 -->
-  <g>
-    <!-- 主色 -->
-    <circle cx="120" cy="128" r="78" fill="url(#peel)" stroke="#7E6B1F" stroke-width="2"/>
-    <!-- 油胞纹理 -->
-    <circle cx="120" cy="128" r="78" fill="url(#peelTexture)" clip-path="circle(78px at 120px 128px)"/>
-    <!-- 底部反光 -->
-    <circle cx="120" cy="128" r="78" fill="url(#bottomGlow)"/>
-    <!-- 内阴影深度 -->
-    <circle cx="120" cy="128" r="78" fill="url(#innerShade)"/>
-    <!-- 大柔光（左上） -->
-    <circle cx="120" cy="128" r="78" fill="url(#softGlow)"/>
-    <!-- 顶部小高光 -->
-    <ellipse cx="92" cy="86" rx="14" ry="9" fill="url(#topShine)"/>
-    <!-- 反光点 -->
-    <circle cx="86" cy="84" r="2.5" fill="#FFFFFF" opacity="0.9"/>
-    <circle cx="86" cy="84" r="1"   fill="#FFFFFF"/>
-  </g>
-
-  <!-- 腮红 -->
-  <ellipse cx="70"  cy="150" rx="15" ry="9" fill="url(#blush)"/>
-  <ellipse cx="170" cy="150" rx="15" ry="9" fill="url(#blush)"/>
-
-  <!-- 眼睛：弯弯笑眼（粗细变化，更精致） -->
-  <path d="M 76 134 Q 92 120, 108 134" fill="none" stroke="#3A2A10" stroke-width="5.5" stroke-linecap="round"/>
-  <path d="M 132 134 Q 148 120, 164 134" fill="none" stroke="#3A2A10" stroke-width="5.5" stroke-linecap="round"/>
-
-  <!-- 嘴巴：温和微笑 -->
-  <path d="M 104 164 Q 120 180, 136 164" fill="none" stroke="#3A2A10" stroke-width="4.5" stroke-linecap="round"/>
-  <!-- 小舌头（暗粉，更精致） -->
-  <path d="M 114 170 Q 120 178, 126 170 Q 123 174, 120 175 Q 117 174, 114 170 Z" fill="#E66E84" opacity="0.9"/>
 </svg>
