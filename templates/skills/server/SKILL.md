@@ -68,7 +68,7 @@ cd my-api
 make start          # 启动中间件
 make install        # 安装后端依赖
 make backend-dev    # 启动 FastAPI 开发服务器
-# 访问 http://localhost:199311/docs
+# 访问 http://localhost:59001/docs
 ```
 
 ## 与其他命令的关系

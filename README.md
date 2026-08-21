@@ -56,18 +56,18 @@ cd /path/to/youzi-init-project
 ```bash
 cd my-app
 make start          # 启动 PostgreSQL + Redis + ...
-make backend-dev    # 终端 A：启动后端（http://localhost:199311）
-make frontend-dev   # 终端 B：启动前端（http://localhost:199310）
+make backend-dev    # 终端 A：启动后端（http://localhost:59001）
+make frontend-dev   # 终端 B：启动前端（http://localhost:59000）
 ```
 
 ## 常用地址
 
-| 服务     | 地址                         |
-| -------- | ---------------------------- |
-| 前端     | http://localhost:199310      |
-| 后端 API | http://localhost:199311      |
-| API 文档 | http://localhost:199311/docs |
-| 默认账号 | `youzi` / `youzi@123456`     |
+| 服务     | 地址                        |
+| -------- | --------------------------- |
+| 前端     | http://localhost:59000      |
+| 后端 API | http://localhost:59001      |
+| API 文档 | http://localhost:59001/docs |
+| 默认账号 | `youzi` / `youzi@123456`    |
 
 > ⚠️ 生产环境必须修改默认账号和 `SECRET_KEY`。
 

@@ -65,7 +65,7 @@ description: 一键初始化前端工程（Vue 3 + TS + Vite + Element Plus，�
 cd my-web
 pnpm install        # 或 npm install
 pnpm dev            # 启动开发服务器
-# 访问 http://localhost:199310
+# 访问 http://localhost:59000
 ```
 
 ## 与其他命令的关系
