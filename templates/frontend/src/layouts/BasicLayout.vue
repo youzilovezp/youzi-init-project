@@ -4,6 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'
 import { ElMessageBox } from 'element-plus'
+import { APP_TITLE } from '@/config'
 
 const router = useRouter()
 const route = useRoute()
@@ -55,7 +56,11 @@ async function handleLogout() {
   <el-container class="layout-container">
     <!-- 侧边栏 -->
     <el-aside :width="appStore.sidebarCollapsed ? '64px' : '220px'" class="layout-aside">
-      <div class="logo">{{ appStore.sidebarCollapsed ? 'M' : 'Youzi Admin' }}</div>
+      <div class="logo">
+        <img v-if="!appStore.sidebarCollapsed" src="/youzi-logo.svg" alt="logo" class="logo-img" />
+        <img v-else src="/youzi-logo.svg" alt="logo" class="logo-img-small" />
+        <span v-if="!appStore.sidebarCollapsed" class="logo-text">{{ APP_TITLE }}</span>
+      </div>
       <el-menu
         :default-active="activeMenu"
         :collapse="appStore.sidebarCollapsed"
@@ -138,11 +143,32 @@ async function handleLogout() {
     height: 60px;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
+    padding: 0 16px;
+    gap: 8px;
     color: #fff;
-    font-size: 18px;
+    font-size: 16px;
     font-weight: bold;
     border-bottom: 1px solid #1f2d3d;
+    overflow: hidden;
+  }
+
+  .logo-img {
+    height: 36px;
+    width: 36px;
+    flex-shrink: 0;
+  }
+
+  .logo-img-small {
+    height: 36px;
+    width: 36px;
+    flex-shrink: 0;
+  }
+
+  .logo-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   :deep(.el-menu) {
