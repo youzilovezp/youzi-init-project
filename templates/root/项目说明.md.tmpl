@@ -2,118 +2,147 @@
 {% if only == 'admin' %}
 基于 **FastAPI + Vue 3 + TypeScript + Element Plus** 的完整管理系统脚手架。
 
-## 一键启动
+## 三步启动
 
 ```bash
-# 1. 启动所有中间件（含 adminer 数据库 UI）
+# 1. 首次：装依赖（一次性）
+make install
+
+# 2. 启动所有中间件（含 adminer 数据库 UI）
 make start
 
-# 2. 启动后端（新终端）
-make backend-dev
-
-# 3. 启动前端（新终端）
-make frontend-dev
+# 3. 启动后端 + 前端（开两个终端）
+make backend-dev    # 终端 A
+make frontend-dev   # 终端 B
 ```
 
-访问：
+## 启动后访问
 
-- 前端：http://localhost:3000
-- 后端 API：http://localhost:8000
-- API 文档：http://localhost:8000/docs
-- 数据库 UI：http://localhost:8080（adminer，看数据用）
-- 默认账号：`{{ admin_user }}` / **启动时控制台打印的随机密码**（或 `.env` 中 `INITIAL_ADMIN_PASSWORD`）
+| 服务 | 地址 | 用途 |
+|---|---|---|
+| 前端 | http://localhost:3000 | 用户界面 |
+| 后端 API | http://localhost:8000 | REST 接口 |
+| API 文档 | http://localhost:8000/docs | Swagger UI（点 "Authorize" 输入 token 调试） |
+| 数据库 UI | http://localhost:8080 | adminer（看/改数据库） |
+| 账号 | `{{ admin_user }}` / **启动时控制台打印的随机密码** | 登录任意服务 |
+
+> 💡 adminer 登录：服务器 `postgres`、用户名 `{{ project_name }}`、密码 `{{ db_password }}`、数据库 `{{ project_name }}`。
+
+## 日常用到的命令
+
+```bash
+make help            # 查看完整命令列表
+make start           # 启动中间件
+make stop            # 停止中间件
+make logs            # 看中间件日志
+make backend-dev     # 启动后端（自动建表 + 种子）
+make frontend-dev    # 启动前端
+make db-shell        # 进入 psql 命令行
+make db-reset        # ⚠️ 重置数据库（清空所有数据）
+make reset-admin     # 忘了密码？重置为新随机密码
+make admin-pass NEW=xxx  # 重置为指定密码
+make backup          # 备份到 backups/
+make restore FILE=backups/xxx.sql  # 从备份恢复
+make clean           # ⚠️ 清理所有数据卷
+```
+
+## 加新业务模块
+
+```bash
+python backend/scripts/add_module.py order --title "订单管理"
+```
+
+脚本会自动生成 model/schema/crud/router/view/api 六个文件，并提示需要手动注册的 4 处地方。
 
 ## 项目结构
 
 ```
 {{ project_name }}/
 ├── backend/                # Python 后端（FastAPI）
-│   ├── app/
+│   ├── app/                # 应用代码（API/Service/CRUD/Model）
 │   ├── alembic/            # 数据库迁移
-│   ├── docs/               # 架构/技术栈/配置/开发 文档
-│   ├── tests/
-│   ├── docker/
+│   ├── docs/               # 架构/技术栈/配置/开发/API 文档
+│   ├── tests/              # 测试
+│   ├── scripts/            # 辅助脚本（reset_admin.py / add_module.py）
 │   ├── pyproject.toml
 │   ├── .env.example
 │   └── 后端说明.md
 ├── frontend/               # 前端（Vue 3 + TS）
-│   ├── src/
-│   ├── docs/
+│   ├── src/                # 应用代码（api/views/stores/...）
+│   ├── docs/               # 架构/技术栈/配置/开发 文档
 │   ├── package.json
 │   ├── vite.config.ts
 │   ├── tsconfig.json
 │   ├── .env.development
 │   └── 前端说明.md
-├── docker-compose.yml      # 一键启动中间件
+├── docker-compose.yml      # postgres + redis + adminer
 ├── Makefile                # 常用命令
 └── 项目说明.md
 ```
-
-## 中间件
-
-| 服务 | 端口 | 用途 |
-|---|---|---|
-| PostgreSQL | 5432 | 主数据库 |
-{%- if enable_redis %}
-| Redis | 6379 | 缓存 |
-{%- endif %}
-{%- if enable_rabbitmq %}
-| RabbitMQ | 5672 / 15672 | 消息队列（15672 是管理界面）|
-{%- endif %}
-{%- if enable_minio %}
-| MinIO | 9000 / 9001 | 对象存储（9001 是控制台）|
-{%- endif %}
 
 ## 文档导航
 
 ### 后端
 - [架构说明](backend/docs/架构说明.md)
-- [技术栈](backend/docs/技术栈.md)
 - [配置说明](backend/docs/配置说明.md)
 - [开发指南](backend/docs/开发指南.md)
 - [API 文档](backend/docs/API文档.md)
 
 ### 前端
 - [架构说明](frontend/docs/架构说明.md)
-- [技术栈](frontend/docs/技术栈.md)
 - [配置说明](frontend/docs/配置说明.md)
 - [开发指南](frontend/docs/开发指南.md)
-
-## 常用命令
-
-```bash
-make help                  # 查看所有可用命令
-make start                 # 启动中间件
-make stop                  # 停止中间件
-make logs                  # 查看日志
-make backend-dev           # 本地启动后端
-make frontend-dev          # 本地启动前端
-make clean                 # ⚠️ 删除所有数据
-```
 {% else %}
 基于 **FastAPI + SQLAlchemy 2.0（异步）** 的后端 API 服务脚手架。
 
-## 一键启动
+## 三步启动
 
 ```bash
-# 1. 启动所有中间件
+# 1. 首次：装依赖（一次性）
+make install
+
+# 2. 启动所有中间件（含 adminer 数据库 UI）
 make start
 
-# 2. 安装依赖并启动开发服务器
-make install
+# 3. 启动后端
 make backend-dev
-
-# 或者手动：
-uv venv .venv && source .venv/bin/activate
-uv pip install -e ".[dev]"
-uvicorn app.main:app --reload
 ```
 
-访问：
+## 启动后访问
 
-- 后端 API：http://localhost:{{ backend_port }}
-- API 文档：http://localhost:{{ backend_port }}/docs
-- 默认账号：`{{ admin_user }}` / **启动时控制台打印的随机密码**（或 `.env` 中 `INITIAL_ADMIN_PASSWORD`）
+| 服务 | 地址 |
+|---|---|
+| 后端 API | http://localhost:{{ backend_port }} |
+| API 文档 | http://localhost:{{ backend_port }}/docs |
+| 数据库 UI | http://localhost:8080 |
+| 账号 | `{{ admin_user }}` / **启动时控制台打印的随机密码** |
+
+> 💡 adminer 登录：服务器 `postgres`、用户名 `{{ project_name }}`、密码 `{{ db_password }}`、数据库 `{{ project_name }}`。
+
+## 日常用到的命令
+
+```bash
+make help            # 查看完整命令列表
+make start           # 启动中间件
+make stop            # 停止中间件
+make logs            # 看中间件日志
+make backend-dev     # 启动后端
+make db-shell        # 进入 psql 命令行
+make db-reset        # ⚠️ 重置数据库（清空所有数据）
+make reset-admin     # 忘了密码？重置为新随机密码
+make admin-pass NEW=xxx  # 重置为指定密码
+make backup          # 备份到 backups/
+make restore FILE=backups/xxx.sql  # 从备份恢复
+make clean           # ⚠️ 清理所有数据卷
+```
+
+## 加新业务模块
+
+```bash
+python scripts/add_module.py order --title "订单管理"
+```
+
+脚本会自动生成 model/schema/crud/router/view/api 六个文件，并提示需要手动注册的 4 处地方。
 
 ## 项目结构
 
@@ -124,58 +153,29 @@ uvicorn app.main:app --reload
 │   ├── core/             # 配置、安全、异常、日志
 │   ├── crud/             # 数据访问
 │   ├── db/               # 数据库连接
-│   ├── middleware/       # 自定义中间件
 │   ├── models/           # ORM 模型
 │   ├── schemas/          # Pydantic 模型
 │   ├── services/         # 业务逻辑
-│   ├── tasks/            # Celery 任务
-│   └── utils/            # 工具
+│   ├── deps.py           # 依赖注入
+│   └── main.py           # 入口
 ├── alembic/              # 数据库迁移
-├── docs/                 # 架构、技术栈、配置、开发、API 文档
+├── docs/                 # 架构/技术栈/配置/开发/API 文档
 ├── tests/                # 测试
+├── scripts/              # 辅助脚本（reset_admin.py / add_module.py）
 ├── docker/               # Dockerfile
 ├── .env.example          # 环境变量样例
-├── pyproject.toml        # 项目依赖
-├── alembic.ini           # Alembic 配置
-├── docker-compose.yml    # 一键启动中间件
+├── pyproject.toml
+├── docker-compose.yml    # postgres + redis + adminer
 ├── Makefile              # 常用命令
 └── 后端说明.md
 ```
 
-## 中间件
-
-| 服务 | 端口 | 用途 |
-|---|---|---|
-| PostgreSQL | 5432 | 主数据库 |
-{%- if enable_redis %}
-| Redis | 6379 | 缓存 |
-{%- endif %}
-{%- if enable_rabbitmq %}
-| RabbitMQ | 5672 / 15672 | 消息队列 |
-{%- endif %}
-{%- if enable_minio %}
-| MinIO | 9000 / 9001 | 对象存储 |
-{%- endif %}
-
 ## 文档导航
 
 - [架构说明](docs/架构说明.md)
-- [技术栈](docs/技术栈.md)
 - [配置说明](docs/配置说明.md)
 - [开发指南](docs/开发指南.md)
 - [API 文档](docs/API文档.md)
-
-## 常用命令
-
-```bash
-make help                  # 查看所有可用命令
-make start                 # 启动中间件
-make stop                  # 停止中间件
-make logs                  # 查看日志
-make backend-dev           # 本地启动后端
-make install               # 安装后端依赖
-make clean                 # ⚠️ 删除所有数据
-```
 {% endif %}
 
 ## License

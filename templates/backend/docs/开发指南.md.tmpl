@@ -3,7 +3,6 @@
 ## 1. 环境准备
 
 - Python 3.11+
-- uv（推荐）或 pip
 - Docker & Docker Compose（用于启动中间件）
 
 ## 2. 安装依赖
@@ -24,72 +23,45 @@ pip install -e ".[dev]"
 
 ## 3. 启动中间件
 
-项目根目录的 `docker-compose.yml` 一键启动所有依赖：
+在工程根目录：
 
 ```bash
-# 在工程根目录执行
-make start-middleware
-
+make start
 # 或
-docker compose up -d postgres{% if enable_redis %} redis{% endif %}{% if enable_rabbitmq %} rabbitmq{% endif %}{% if enable_minio %} minio{% endif %}
+docker compose up -d
 ```
 
-## 4. 配置环境变量
+启动后包含：postgres + redis + **adminer（数据库 UI）**。
+
+## 4. 启动开发服务器
+
+在工程根目录：
 
 ```bash
-cp .env.example .env
-# 编辑 .env，至少修改 SECRET_KEY
-```
-
-## 5. 数据库初始化（自动维护）
-
-后端启动时会**自动维护表结构**，无需手动跑 alembic。具体行为：
-
-| 状态 | 行为 |
-|---|---|
-| 首次启动（数据库无 `alembic_version` 表）| 自动用 `metadata.create_all` 建表 + `alembic stamp head` 打 baseline + 插入种子数据 |
-| 后续启动（已有 `alembic_version` 表）| 自动执行 `alembic upgrade head` + 插入种子数据（仅新增项）|
-| 任何步骤失败 | 记录警告但**不阻塞应用启动** |
-
-如需手动管理迁移：
-
-```bash
-# 修改模型后，生成迁移文件
-make db-migrate msg="add xxx table"
-# 或直接：
-alembic revision --autogenerate -m "add xxx table"
-
-# 应用迁移
-make db-upgrade
-# 或：
-alembic upgrade head
-
-# 回滚
-make db-downgrade
-```
-
-### ⚠️ 重置数据库
-
-```bash
-make db-reset     # 删除数据卷、重建表结构、重新插入种子数据
-make db-backup    # 备份到 backups/ 目录
-make db-restore FILE=backups/backup_xxx.sql
-```
-
-## 6. 启动开发服务器
-
-```bash
-# 方式一：脚本
-./scripts/start.sh
-
-# 方式二：直接
-uvicorn app.main:app --reload --host 0.0.0.0 --port {{ backend_port }}
-
-# 方式三：Makefile（在工程根目录）
 make backend-dev
 ```
 
-### VSCode 调试（推荐）
+或直接：
+
+```bash
+cd backend && uvicorn app.main:app --reload --host 0.0.0.0 --port {{ backend_port }}
+```
+
+启动后日志会打印：
+
+```
+🔑 默认管理员密码：<随机 16 位>（生产环境请立即修改！）
+✅ demo 用户已创建：manager / alice / bob（密码均为 Demo@123）
+```
+
+启动后访问：
+
+- Swagger UI：http://localhost:{{ backend_port }}/docs
+- ReDoc：http://localhost:{{ backend_port }}/redoc
+- 健康检查：http://localhost:{{ backend_port }}/health
+- 数据库 UI：http://localhost:8080
+
+## 5. VSCode 调试
 
 打开 `backend/.vscode/launch.json` 已包含三种配置：
 
@@ -99,156 +71,97 @@ make backend-dev
 
 > 需要先安装 `ms-python.debugpy` 扩展（启动时 VSCode 会提示）。
 
-启动后访问：
+## 6. 数据库（自动维护）
 
-- Swagger UI：http://localhost:{{ backend_port }}/docs
-- ReDoc：http://localhost:{{ backend_port }}/redoc
-- 健康检查：http://localhost:{{ backend_port }}/health
+后端启动时会**自动维护表结构**，无需手动跑 alembic。具体行为：
 
-## 7. 默认账号
+| 状态 | 行为 |
+|---|---|
+| 首次启动（数据库无 `alembic_version` 表）| 自动用 `metadata.create_all` 建表 + `alembic stamp head` 打 baseline + 插入种子数据 |
+| 后续启动（已有 `alembic_version` 表）| 自动执行 `alembic upgrade head` + 插入种子数据（仅新增项） |
+| 任何步骤失败 | 记录警告但**不阻塞应用启动** |
 
-- 用户名：`{{ admin_user }}`（或 `.env` 中 `INITIAL_ADMIN_USERNAME`）
-- 密码：启动后端时控制台会打印随机生成的密码（或 `.env` 中 `INITIAL_ADMIN_PASSWORD`）
+> ⚠️ 如果 alembic 失败，启动日志会给出**中文诊断**（连接失败/数据库不存在/版本冲突），按提示修复即可。
 
-> ⚠️ 生产环境必须立即修改默认密码。
+## 7. 添加新业务模块
 
-## 8. 添加新的业务模块
-
-以「文章」模块为例：
-
-### 8.1 创建模型（`app/models/article.py`）
-
-```python
-from sqlalchemy import String, Text
-from sqlalchemy.orm import Mapped, mapped_column
-from app.models.base_class import Base, TimestampMixin
-
-
-class Article(Base, TimestampMixin):
-    __tablename__ = "articles"
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    title: Mapped[str] = mapped_column(String(200), nullable=False)
-    content: Mapped[str | None] = mapped_column(Text)
-    author_id: Mapped[int] = mapped_column(index=True)
-```
-
-注册到 `app/models/__init__.py`：
-
-```python
-from app.models.article import Article
-__all__ = [..., "Article"]
-```
-
-### 8.2 创建 Schema（`app/schemas/article.py`）
-
-```python
-from pydantic import BaseModel, ConfigDict
-
-
-class ArticleBase(BaseModel):
-    title: str
-    content: str | None = None
-
-
-class ArticleCreate(ArticleBase):
-    pass
-
-
-class ArticleUpdate(BaseModel):
-    title: str | None = None
-    content: str | None = None
-
-
-class ArticleOut(ArticleBase):
-    id: int
-    author_id: int
-    model_config = ConfigDict(from_attributes=True)
-```
-
-### 8.3 创建 CRUD（`app/crud/article.py`）
-
-```python
-from app.crud.base import CRUDBase
-from app.models.article import Article
-from app.schemas.article import ArticleCreate, ArticleUpdate
-
-article_crud = CRUDBase[Article, ArticleCreate, ArticleUpdate](Article)
-```
-
-### 8.4 创建 Endpoint（`app/api/v1/endpoints/articles.py`）
-
-```python
-from fastapi import APIRouter
-from app.api.deps import CurrentUser, SessionDep
-from app.core.exceptions import NotFoundError
-from app.crud.article import article_crud
-from app.schemas.common import ResponseModel
-from app.schemas.article import ArticleCreate, ArticleOut, ArticleUpdate
-
-router = APIRouter()
-
-
-@router.get("", response_model=ResponseModel[list[ArticleOut]])
-async def list_articles(db: SessionDep, _: CurrentUser):
-    items = await article_crud.list_all(db)
-    return ResponseModel(data=[ArticleOut.model_validate(a) for a in items])
-
-
-@router.post("", response_model=ResponseModel[ArticleOut])
-async def create_article(db: SessionDep, _: CurrentUser, payload: ArticleCreate):
-    obj = await article_crud.create(db, payload)
-    return ResponseModel(data=ArticleOut.model_validate(obj))
-
-
-# ... 更多接口
-```
-
-注册路由（`app/api/v1/router.py`）：
-
-```python
-from app.api.v1.endpoints import articles
-
-api_router.include_router(articles.router, prefix="/articles", tags=["文章管理"])
-```
-
-### 8.5 生成迁移
+**强烈推荐**用一键脚本——比手写 5 个文件快 10 倍：
 
 ```bash
-alembic revision --autogenerate -m "add articles table"
-alembic upgrade head
+python scripts/add_module.py order --title "订单管理"
 ```
+
+脚本自动生成：
+
+| 文件 | 内容 |
+|---|---|
+| `app/models/order.py` | SQLAlchemy 模型 |
+| `app/schemas/order.py` | Pydantic schema |
+| `app/crud/order.py` | CRUD 类（继承 CRUDBase） |
+| `app/api/v1/endpoints/order.py` | FastAPI 路由 |
+| `src/api/order.ts` | 前端 axios 接口 |
+| `src/views/order/index.vue` | 前端 CRUD 页面 |
+
+**你需要做的 4 步**（脚本会再次提示）：
+
+1. `backend/app/models/__init__.py` 导入新模型
+2. `backend/app/api/v1/router.py` 注册路由
+3. `frontend/src/router/index.ts` 添加路由
+4. `frontend/src/layouts/BasicLayout.vue` 添加菜单
+
+跑完上述 4 步后，启动后端即可看到新模块。
+
+## 8. 默认账号
+
+| 账号 | 密码 | 角色 |
+|---|---|---|
+| `admin` | 启动时控制台打印（16 位随机） | 超级管理员（is_superuser=true） |
+| `manager` | `Demo@123` | 部门经理（demo 数据） |
+| `alice` | `Demo@123` | 普通员工（demo 数据） |
+| `bob` | `Demo@123` | 普通员工（demo 数据） |
+
+> ⚠️ 生产环境必须修改 admin 密码。用 `make reset-admin` 一键随机重置，或 `make admin-pass NEW=YourNewPass!2025` 指定。
 
 ## 9. 测试
 
 ```bash
+cd backend
 pytest                 # 全部测试
 pytest -v              # 详细输出
 pytest --cov=app       # 覆盖率
 ```
 
-## 10. 代码规范
-
-```bash
-ruff check app/        # 检查
-ruff format app/       # 格式化
-mypy app/              # 类型检查
-```
-
-## 11. 常见问题
+## 10. 常见问题
 
 ### Q: 启动报错 `SECRET_KEY 不能为空`
 
-A: `.env` 文件不存在或未设置 `SECRET_KEY`。`cp .env.example .env` 后修改。
+A: `.env` 文件不存在或 `SECRET_KEY` 被注释掉。`make backend-dev` 会自动从 `.env.example` 复制。
 
 ### Q: 数据库连接失败
 
-A: 检查中间件是否启动：`docker compose ps`。检查 `.env` 中数据库主机端口配置。
+A: 看启动日志的中文诊断。常见原因：
+- 中间件没启动 → `make start`
+- 端口被占用 → `make stop` 后 `lsof -i :5432` 查
+- 密码不一致 → 重新跑 `make reset-admin` 不影响，DB 密码在 .env
+
+### Q: 改了模型没生效
+
+A: alembic 自动检测版本号自动迁移，但新增字段可能需要手动处理：
+- 增加列：自动迁移（默认值）
+- 改类型/删字段：需手动 `make db-reset` ⚠️（清数据）
+
+### Q: 忘了 admin 密码
+
+A: `make reset-admin` —— 会打印新随机密码。
+
+### Q: 想重置整个数据库
+
+A: `make db-reset` —— 删除所有数据卷后重建。
 
 ### Q: 端口 8000 被占用
 
 A: 修改 `.env` 中的 `PORT`，或关闭占用进程：`lsof -i :8000`。
 
-### Q: 如何重置数据库
+### Q: 想看表里到底有什么
 
-A: 删除数据卷：`docker compose down -v`，再 `make start-middleware`。
+A: 打开 http://localhost:8080（adminer），登录看数据。

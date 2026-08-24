@@ -13,59 +13,43 @@ description: 一键初始化后端 API 工程（FastAPI + postgresql + redis + a
 /yz-init-server my-api
 ```
 
-随后 Claude 会询问项目显示名（可选）和初始管理员密码（可选），其余参数走默认值。确认后自动生成。
+Claude 会询问项目显示名（可选）和初始管理员密码（可选），其余走默认值。
 
 ## 默认配置
 
-| 项目       | 默认值                                 |
-| ---------- | -------------------------------------- |
-| 后端框架   | FastAPI                                |
-| 数据库     | PostgreSQL                             |
-| Redis 缓存 | ✅                                     |
-| RabbitMQ   | ⬜（ENV: `ENABLE_RABBITMQ=true` 启用） |
-| Celery     | ⬜（ENV: `ENABLE_CELERY=true` 启用）   |
-| MinIO      | ⬜（ENV: `ENABLE_MINIO=true` 启用）    |
-| 后端端口   | 8000                                   |
-| adminer UI | http://localhost:8080                  |
+| 配置              | 默认值                      |
+| ----------------- | --------------------------- |
+| 后端框架          | FastAPI                     |
+| 数据库            | PostgreSQL                  |
+| Redis             | ✅                          |
+| adminer 数据库 UI | ✅（http://localhost:8080） |
+| 后端端口          | 8000                        |
 
-## 输出结构
+## 执行流程
 
-```
-my-api/
-├── app/                       # FastAPI 应用（分层）
-├── alembic/                   # 数据库迁移
-├── docs/                      # 架构/技术栈/配置/开发/API 文档
-├── tests/
-├── docker/                    # Dockerfile
-├── .env                       # 自动生成（含随机 SECRET_KEY）
-├── .env.example
-├── pyproject.toml
-├── alembic.ini
-├── docker-compose.yml         # postgres + redis + adminer
-├── Makefile                   # start/stop/logs/install/backend-dev/db-shell/db-reset
-└── 后端说明.md
-```
+1. 询问项目显示名 + 初始管理员密码（均可回车跳过）
+2. 调用 `scripts/init.py <name> --only server`
+3. 渲染 `templates/backend/*` + `templates/root/*`，文件放在项目根目录
+4. 复制到目标目录
+5. 提示启动：`cd <name> && make install && make start && make backend-dev`
 
-## 启动流程
+## 启动后访问
 
-```bash
-cd my-api
-make start          # 启动中间件（postgres + redis + adminer）
-make install        # 安装后端依赖
-make backend-dev    # 启动 FastAPI 开发服务器
-# 访问 http://localhost:8000/docs
-# 数据库 UI： http://localhost:8080
-```
+- 后端 API：http://localhost:8000
+- API 文档：http://localhost:8000/docs
+- 数据库 UI：http://localhost:8080
+- 默认账号：`admin` / 启动时控制台打印的随机密码
 
-## 数据库自动维护
+## 常用 Make 命令
 
-| 状态     | 行为                                                         |
-| -------- | ------------------------------------------------------------ |
-| 首次启动 | 自动 `create_all` 建表 + `alembic stamp head` + 插入种子数据 |
-| 后续启动 | 自动 `alembic upgrade head` + 插入缺失的种子数据             |
+- `make start` / `make stop` — 中间件启停
+- `make backend-dev` — 本地启动
+- `make db-shell` — 进入 psql
+- `make reset-admin` / `make admin-pass NEW=xxx` — 重置密码
+- `make backup` / `make restore FILE=...` — 备份恢复
+- `make db-reset` — ⚠️ 清空所有数据
 
 ## 与其他命令的关系
 
-- `/yz-init-server <name>`：本技能，纯后端 + 中间件
 - `/yz-init-admin <name>`：完整前后端
-- `/yz-init-ui <name>`：仅前端
+- `/yz-init-ui <name>`：纯前端

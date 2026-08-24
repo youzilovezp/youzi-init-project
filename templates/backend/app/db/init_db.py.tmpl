@@ -96,27 +96,85 @@ def _run_alembic_subprocess(*args: str) -> tuple[int, str]:
     return proc.returncode, (proc.stderr or "") + (proc.stdout or "")
 
 
+def _diagnose_alembic_error(output: str) -> str:
+    """把 alembic 错误翻译成中文，给非技术用户看。
+
+    识别常见场景：
+      1. 数据库连接失败（密码错/服务未起）
+      2. 数据库不存在
+      3. 版本冲突（手动改过库）
+      4. 其他
+    """
+    text = output.lower()
+    if (
+        "password authentication failed" in text
+        or "could not connect" in text
+        or "connection refused" in text
+        or "operationalerror" in text
+    ):
+        return (
+            "❌ 数据库连接失败。请检查：\n"
+            "   1. 中间件是否启动？`make start`\n"
+            "   2. .env 中 POSTGRES_PASSWORD / POSTGRES_USER / POSTGRES_HOST 是否与 docker-compose.yml 一致\n"
+            "   3. POSTGRES_PORT 是否被占用"
+        )
+    if "database" in text and "does not exist" in text:
+        return (
+            "❌ 数据库不存在。请确认：\n"
+            "   1. docker-compose.yml 里 POSTGRES_DB 已创建\n"
+            "   2. 或运行 `make db-shell` 进入 psql 检查 \\l"
+        )
+    if "version_num" in text or "conflicts with" in text:
+        return (
+            "❌ alembic 版本冲突——可能是手动改过数据库。\n"
+            "   解决：`make db-reset` 重建数据库（⚠️ 会清空所有数据）"
+        )
+    return f"❌ Alembic 失败：{output.strip()[:300]}"
+
+
 async def _alembic_cmd(*args: str, success_msg: str) -> None:
-    """子进程方式跑 alembic。"""
+    """子进程方式跑 alembic，失败时给非技术用户友好的中文诊断。"""
     code, output = await asyncio.to_thread(_run_alembic_subprocess, *args)
     if code == 0:
         logger.info(success_msg)
     else:
-        logger.warning(f"⚠️ Alembic {' '.join(args)} 失败：{output.strip()[:200]}")
+        logger.warning(_diagnose_alembic_error(output))
 
 
 # ---------- 种子数据 ----------
-async def create_initial_data() -> None:
-    """插入种子数据：默认角色 + 默认管理员。"""
-    async with async_session() as session:
-        # 默认角色
-        admin_role = await session.get(Role, 1)
-        if admin_role is None:
-            admin_role = Role(id=1, name="超级管理员", code="admin", remark="系统内置")
-            session.add(admin_role)
-            await session.commit()
+DEMO_USERS = [
+    # (username, nickname, email, role_code, password_plain)
+    ("manager", "张经理", "manager@example.com", "manager", "Demo@123"),
+    ("alice", "李爱丽丝", "alice@example.com", "employee", "Demo@123"),
+    ("bob", "王伯伯", "bob@example.com", "employee", "Demo@123"),
+]
 
-        # 默认管理员
+
+async def create_initial_data() -> None:
+    """插入种子数据：3 个角色 + 1 管理员 + 3 demo 用户。
+
+    - admin / 随机密码（启动时控制台打印）
+    - manager / Demo@123（让非技术用户有第二个账号体验角色差异）
+    - alice, bob / Demo@123（普通员工 demo）
+
+    登录界面默认看到 admin。demo 账号仅在 adminer 里或用户管理页可见。
+    """
+    from app.models.user import User  # 避免循环
+
+    async with async_session() as session:
+        # ---------- 角色 ----------
+        seed_roles = [
+            Role(id=1, name="超级管理员", code="admin", remark="系统内置"),
+            Role(id=2, name="部门经理", code="manager", remark="demo 数据"),
+            Role(id=3, name="普通员工", code="employee", remark="demo 数据"),
+        ]
+        for role in seed_roles:
+            existing = await session.get(Role, role.id)
+            if existing is None:
+                session.add(role)
+        await session.commit()
+
+        # ---------- 管理员 ----------
         stmt = select(User).where(User.username == settings.INITIAL_ADMIN_USERNAME)
         result = await session.execute(stmt)
         admin = result.scalar_one_or_none()
@@ -132,11 +190,37 @@ async def create_initial_data() -> None:
             )
             session.add(admin)
             await session.commit()
-            # 首次启动时显著打印凭证，避免用户被"默认密码"误导
             logger.info(
                 f"✅ 默认管理员已创建：{settings.INITIAL_ADMIN_USERNAME}"
             )
             logger.warning(
+                f"🔑 默认管理员密码：{settings.INITIAL_ADMIN_PASSWORD}"
+                "（生产环境请立即修改！）"
+            )
+
+        # ---------- Demo 用户 ----------
+        for username, nickname, email, role_code, plain_pwd in DEMO_USERS:
+            stmt = select(User).where(User.username == username)
+            result = await session.execute(stmt)
+            if result.scalar_one_or_none() is not None:
+                continue
+            # 取角色 id
+            role_id = {"manager": 2, "employee": 3}.get(role_code, 1)
+            user = User(
+                username=username,
+                nickname=nickname,
+                email=email,
+                password_hash=hash_password(plain_pwd),
+                is_active=True,
+                is_superuser=False,
+                role_id=role_id,
+            )
+            session.add(user)
+        await session.commit()
+        logger.info(
+            "✅ demo 用户已创建：manager / alice / bob（密码均为 Demo@123）"
+        )
+        logger.warning(
                 f"🔑 默认管理员密码：{settings.INITIAL_ADMIN_PASSWORD}"
                 "（生产环境请立即修改！）"
             )

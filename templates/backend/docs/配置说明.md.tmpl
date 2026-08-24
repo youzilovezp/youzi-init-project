@@ -1,148 +1,109 @@
 # {{ project_title }} 后端配置说明
 
 > 所有配置项都在 `app/core/config.py` 中定义，通过 pydantic-settings 从 `.env` 文件加载。
+> 普通用户**只需要关心**：启动后控制台打印的密码、数据库 UI 地址。**不需要改任何字段**。
 
-## 1. 配置文件加载优先级
+## 配置文件加载优先级
 
 1. 环境变量（最高）
 2. `.env` 文件
 3. `Settings` 类中的默认值（最低）
 
-> **注意**：业务代码中只能通过 `from app.core.config import settings` 访问，禁止直接 `os.getenv()`。
+## 启动后会自动设置的项
 
-## 2. 配置项详解
+| 项 | 值 | 说明 |
+|---|---|---|
+| `SECRET_KEY` | 随机生成 64 位 hex | init.py 自动写入 .env |
+| `POSTGRES_PASSWORD` | 随机生成 20 位 | init.py 自动写入 .env |
+| 其它中间件密码 | 随机生成 | init.py 自动写入 .env |
+
+## 常用配置项
 
 ### 应用基础
 
-| 变量 | 类型 | 默认值 | 说明 |
-|---|---|---|---|
-| `APP_NAME` | str | `{{ project_title }}` | 应用名，会出现在 OpenAPI 标题 |
-| `APP_ENV` | enum | `dev` | `dev` / `test` / `prod` |
-| `DEBUG` | bool | `true` | 是否启用调试模式 |
-| `API_V1_PREFIX` | str | `/api/v1` | API 路由前缀 |
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `APP_NAME` | `{{ project_title }}` | 应用名，会出现在 OpenAPI 标题 |
+| `APP_ENV` | `dev` | `dev` / `test` / `prod` |
+| `DEBUG` | `true` | 是否启用调试模式（生产环境改为 `false`） |
+| `API_V1_PREFIX` | `/api/v1` | API 路由前缀 |
 
 ### 安全
 
-| 变量 | 类型 | 默认值 | 说明 |
-|---|---|---|---|
-| `SECRET_KEY` | str | **必填** | JWT 签名密钥，生产环境用 `openssl rand -hex 32` 生成 |
-| `JWT_ALGORITHM` | str | `HS256` | JWT 算法 |
-| `JWT_EXPIRE_MINUTES` | int | `1440` | Token 过期时间（分钟，唯一字段）|
-| `ACCESS_TOKEN_EXPIRE_SECONDS` | int | `JWT_EXPIRE_MINUTES * 60` | 派生字段，仅返回前端展示，不可单独配置 |
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `SECRET_KEY` | 必填 | JWT 签名密钥，生产环境用 `openssl rand -hex 32` 生成 |
+| `JWT_ALGORITHM` | `HS256` | JWT 算法 |
+| `JWT_EXPIRE_MINUTES` | `1440` | Token 过期时间（分钟，**唯一配置字段**） |
+| `ACCESS_TOKEN_EXPIRE_SECONDS` | 自动派生 | 前端展示用，无需配置 |
 
 ### 服务监听
 
-| 变量 | 类型 | 默认值 | 说明 |
-|---|---|---|---|
-| `HOST` | str | `0.0.0.0` | 监听地址 |
-| `PORT` | int | `8000` | 监听端口 |
-| `WORKERS` | int | `1` | Uvicorn worker 数 |
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `HOST` | `0.0.0.0` | 监听地址 |
+| `PORT` | `{{ backend_port }}` | 监听端口 |
+| `WORKERS` | `1` | Uvicorn worker 数（生产环境按 CPU 调整） |
 
 ### 数据库
 
-| 变量 | 类型 | 默认值 | 说明 |
-|---|---|---|---|
-| `DB_DRIVER` | str | `{{ db_driver }}` | 异步驱动（asyncpg / aiomysql）|
-| `POSTGRES_*` / `MYSQL_*` | - | - | 数据库连接参数 |
-| `DB_ECHO` | bool | `false` | 是否打印 SQL 日志 |
-| `DB_POOL_SIZE` | int | `10` | 连接池大小 |
-| `DB_MAX_OVERFLOW` | int | `20` | 超出池大小后允许的最大连接数 |
-
-> **多环境切换**：通过修改 `DB_DRIVER` 与对应的连接参数即可。`DATABASE_URL` 属性会根据 `DB_DRIVER` 自动拼接。
-
-### Redis {{ '✅' if enable_redis else '（未启用）' }}
-
-| 变量 | 类型 | 默认值 | 说明 |
-|---|---|---|---|
-| `REDIS_HOST` | str | `localhost` | |
-| `REDIS_PORT` | int | `6379` | |
-| `REDIS_DB` | int | `0` | |
-| `REDIS_PASSWORD` | str | - | 无密码则留空 |
-
-### RabbitMQ {{ '✅' if enable_rabbitmq else '（未启用）' }}
-
-| 变量 | 类型 | 默认值 |
+| 变量 | 默认值 | 说明 |
 |---|---|---|
-| `RABBITMQ_HOST` | str | `localhost` |
-| `RABBITMQ_PORT` | int | `5672` |
-| `RABBITMQ_USER` | str | `{{ project_name }}` |
-| `RABBITMQ_PASSWORD` | str | `{{ project_name }}` |
-| `RABBITMQ_VHOST` | str | `/` |
+| `POSTGRES_HOST` | `localhost` | uvicorn 在宿主机上跑；容器内改为 `postgres` |
+| `POSTGRES_PORT` | `{{ postgres_port }}` | 5432 |
+| `POSTGRES_USER` | `{{ project_name }}` | |
+| `POSTGRES_PASSWORD` | 随机生成 | init.py 自动写入 |
+| `POSTGRES_DB` | `{{ project_name }}` | |
 
-### Celery {{ '✅' if enable_celery else '（未启用）' }}
+> 默认 `POSTGRES_HOST=localhost`（uvicorn 在宿主机上跑）。
+> 如在 docker 容器内运行（`docker compose exec backend ...`），改成 `postgres`。
 
-| 变量 | 类型 | 说明 |
-|---|---|---|
-| `CELERY_BROKER_URL` | str | 留空则使用 `REDIS_URL` |
-| `CELERY_RESULT_BACKEND` | str | 同上 |
+### Redis
 
-### MinIO {{ '✅' if enable_minio else '（未启用）' }}
-
-| 变量 | 类型 | 默认值 |
-|---|---|---|
-| `MINIO_ENDPOINT` | str | `localhost:9000` |
-| `MINIO_ACCESS_KEY` | str | `minioadmin` |
-| `MINIO_SECRET_KEY` | str | `minioadmin` |
-| `MINIO_BUCKET` | str | `{{ project_name }}` |
-| `MINIO_SECURE` | bool | `false` |
+| 变量 | 默认值 |
+|---|---|
+| `REDIS_HOST` | `localhost` |
+| `REDIS_PORT` | `6379` |
+| `REDIS_PASSWORD` | （无密码） |
 
 ### CORS
+
+`.env` 中：
 
 ```env
 CORS_ORIGINS=["http://localhost:{{ frontend_port }}","http://localhost:3000"]
 ```
 
-JSON 数组格式，按需添加域名。生产环境只保留可信域名。
+JSON 数组，按需添加域名。**生产环境只保留可信域名**（删掉 `localhost`）。
 
 ### 日志
 
-| 变量 | 类型 | 默认值 | 说明 |
-|---|---|---|---|
-| `LOG_LEVEL` | str | `INFO` | DEBUG/INFO/WARNING/ERROR |
-| `LOG_FORMAT` | enum | `text` | `text` / `json`（生产推荐 json）|
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `LOG_LEVEL` | `INFO` | DEBUG/INFO/WARNING/ERROR |
+| `LOG_FORMAT` | `text` | `text` / `json`（**生产推荐 json** 便于日志聚合） |
 
 ### 初始化
 
-| 变量 | 类型 | 默认值 | 说明 |
-|---|---|---|---|
-| `INITIAL_ADMIN_USERNAME` | str | `{{ admin_user }}` | 首次启动时创建的管理员用户名 |
-| `INITIAL_ADMIN_PASSWORD` | str | **随机生成** | 默认密码由 `init.py` 随机生成（启动后端时控制台打印），**生产环境必须改** |
-| `INITIAL_ADMIN_EMAIL` | str | `{{ admin_email }}` | 邮箱 |
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `INITIAL_ADMIN_USERNAME` | `{{ admin_user }}` | 首次启动时创建的管理员用户名 |
+| `INITIAL_ADMIN_PASSWORD` | **随机生成** | 默认密码由 init.py 随机生成（启动后端时控制台打印） |
+| `INITIAL_ADMIN_EMAIL` | `{{ admin_email }}` | 邮箱 |
 
 ### 数据库自动维护
 
-| 变量 | 类型 | 默认值 | 说明 |
-|---|---|---|---|
-| `AUTO_INIT_DB` | bool | `true` | 首次启动（无 alembic_version 表）执行 `metadata.create_all` + `alembic stamp head`；后续启动执行 `alembic upgrade head` |
-| `AUTO_SEED_DATA` | bool | `true` | 自动插入种子数据（默认管理员、默认角色） |
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `AUTO_INIT_DB` | `true` | 首次启动执行 `create_all` + `alembic stamp head`；后续启动执行 `alembic upgrade head` |
+| `AUTO_SEED_DATA` | `true` | 自动插入种子数据（默认管理员、demo 用户、demo角色）） |
 
-> **生产环境建议**：保持 `AUTO_INIT_DB=true`（推荐）；如需关闭自动迁移，设为 `false`，由运维手工跑 `alembic upgrade head`。
+> 关闭后：需手动跑 `alembic upgrade head` 和种子插入。
 
-## 3. 多环境实践
+## 生产环境建议（一次性配置）
 
-```
-backend/
-├── .env             # 当前环境（gitignore）
-├── .env.example     # 样例（提交）
-├── .env.dev         # 开发环境（提交）
-├── .env.prod        # 生产环境（提交）
-└── .env.test        # 测试环境（提交）
-```
-
-加载顺序：pydantic-settings 会按 `env_file` 加载 `.env`，如需按环境加载：
-
-```python
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=f".env.{os.getenv('APP_ENV', 'dev')}",
-        ...
-    )
-```
-
-## 4. 安全建议
-
-1. **永远不要把 `.env` 提交到 git**。
-2. **生产环境必须使用强随机 SECRET_KEY**。
-3. **生产环境关闭 DEBUG、DB_ECHO**。
-4. **生产环境 LOG_FORMAT 设为 json**，便于日志聚合。
-5. **CORS 不要写 `*`**，只列出可信域名。
+1. 修改 `SECRET_KEY`：`openssl rand -hex 32`
+2. `DEBUG=false`
+3. `LOG_FORMAT=json`
+4. `CORS_ORIGINS` 只保留生产域名（删删除 `localhost`）
+5. 用 `make reset-admin` 设置强 admin 密码

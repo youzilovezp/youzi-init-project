@@ -13,43 +13,29 @@ description: 一键初始化完整的管理系统（后端 + 前端 + postgresql
 /yz-init-admin my-app
 ```
 
-随后 Claude 会通过 AskUserQuestion 询问项目显示名（可选）和初始管理员密码（可选），其余参数全部走默认值。确认后自动生成 `项目目录。
+Claude 会询问项目显示名（可选）和初始管理员密码（可选），其余全部走默认值。确认后自动生成 `项目目录`。
 
-## 默认配置
+## 默认配置（用户不需要选）
 
-| 项目       | 默认值                                           |
-| ---------- | ------------------------------------------------ |
-| 后端框架   | FastAPI（不可改）                                |
-| 前端框架   | Vue 3 + TS + Vite（不可改）                      |
-| 数据库     | PostgreSQL                                       |
-| Redis 缓存 | ✅（默认启用）                                   |
-| RabbitMQ   | ⬜（默认关闭，ENV: `ENABLE_RABBITMQ=true` 启用） |
-| Celery     | ⬜（默认关闭，ENV: `ENABLE_CELERY=true` 启用）   |
-| MinIO      | ⬜（默认关闭，ENV: `ENABLE_MINIO=true` 启用）    |
-| 后端端口   | 8000                                             |
-| 前端端口   | 3000                                             |
-| adminer UI | http://localhost:8080（非技术用户看数据库）      |
-
-## 输出结构
-
-```
-my-app/
-├── backend/                # Python 后端（FastAPI）
-├── frontend/               # 前端（Vue 3 + TS）
-├── docker-compose.yml      # postgres + redis + adminer
-├── Makefile                # start/stop/restart/logs/backend-dev/frontend-dev/install/db-shell/db-reset
-└── 项目说明.md               # 总入口文档
-```
+| 配置              | 默认值                      |
+| ----------------- | --------------------------- |
+| 后端框架          | FastAPI                     |
+| 前端框架          | Vue 3 + TS + Vite           |
+| 数据库            | PostgreSQL                  |
+| Redis             | ✅（已启用）                |
+| adminer 数据库 UI | ✅（http://localhost:8080） |
+| 后端端口          | 8000                        |
+| 前端端口          | 3000                        |
 
 ## 执行流程
 
-1. 询问项目显示名 + 初始管理员密码（均可选）
+1. 询问项目显示名 + 初始管理员密码（均可回车跳过）
 2. 调用 `scripts/init.py <name> --only admin`
 3. 渲染 `templates/backend/*` + `templates/frontend/*` + `templates/root/*`
 4. 复制到目标目录 `项目目录/`
-5. 提示启动：`cd <name> && make start && make backend-dev && make frontend-dev`
+5. 提示启动：`cd <name> && make install && make start && make backend-dev && make frontend-dev`
 
-## 启动后访问
+## 启动后用户访问
 
 - 前端：http://localhost:3000
 - 后端 API：http://localhost:8000
@@ -57,16 +43,24 @@ my-app/
 - 数据库 UI：http://localhost:8080
 - 默认账号：`admin` / 启动时控制台打印的随机密码
 
-## 数据库自动维护
+## 日常用到的 Make 命令（生成项目里有 `make help`）
 
-| 状态     | 行为                                                         |
-| -------- | ------------------------------------------------------------ |
-| 首次启动 | 自动 `create_all` 建表 + `alembic stamp head` + 插入种子数据 |
-| 后续启动 | 自动 `alembic upgrade head` + 插入缺失的种子数据             |
-| 任何失败 | 记录警告但不阻塞启动                                         |
+- `make start` / `make stop` — 中间件启停
+- `make backend-dev` / `make frontend-dev` — 本地开发
+- `make db-shell` — 进入 psql 命令行
+- `make reset-admin` — 忘了密码？重置
+- `make backup` / `make restore FILE=...` — 备份恢复
+- `make db-reset` — ⚠️ 清空所有数据
+
+## 加新业务模块
+
+```bash
+python backend/scripts/add_module.py order --title "订单管理"
+```
+
+自动生成 model/schema/crud/router/view/api 六个文件，提示用户 4 处手动注册。
 
 ## 与其他命令的关系
 
-- `/yz-init-admin <name>`：本技能，前后端 + 中间件 + adminer（最常用）
-- `/yz-init-server <name>`：仅后端 + 中间件
-- `/yz-init-ui <name>`：仅前端
+- `/yz-init-server <name>`：纯后端 + 中间件
+- `/yz-init-ui <name>`：纯前端

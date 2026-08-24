@@ -11,15 +11,21 @@ const stats = ref({
   todayActive: 0,
   totalRoles: 0,
 })
+const loading = ref(true)
 
 async function loadStats() {
   try {
-    const data = await request.get<typeof stats.value, typeof stats.value>('/stats/overview', { silent: true })
+    const data = await request.get<typeof stats.value, typeof stats.value>(
+      '/stats/overview',
+      { silent: true }
+    )
     if (data && typeof data === 'object') {
       stats.value = data as typeof stats.value
     }
   } catch {
     // 静默失败：endpoint 临时不可用时保持 0，不弹全局错误
+  } finally {
+    loading.value = false
   }
 }
 
@@ -32,7 +38,8 @@ onMounted(() => {
   <div class="dashboard">
     <el-card>
       <template #header>
-        <span>欢迎回来，{{ userStore.displayName }}</span>
+        <span v-if="userStore.userInfo">欢迎回来，{{ userStore.displayName }}</span>
+        <el-skeleton v-else :rows="1" animated />
       </template>
       <p>你可以：</p>
       <ul>
@@ -46,19 +53,22 @@ onMounted(() => {
       <el-col :span="8">
         <el-card>
           <template #header><span>总用户数</span></template>
-          <div class="metric">{{ stats.totalUsers }}</div>
+          <div v-if="!loading" class="metric">{{ stats.totalUsers }}</div>
+          <el-skeleton v-else :rows="1" animated style="padding: 8px 0" />
         </el-card>
       </el-col>
       <el-col :span="8">
         <el-card>
           <template #header><span>今日活跃</span></template>
-          <div class="metric">{{ stats.todayActive }}</div>
+          <div v-if="!loading" class="metric">{{ stats.todayActive }}</div>
+          <el-skeleton v-else :rows="1" animated style="padding: 8px 0" />
         </el-card>
       </el-col>
       <el-col :span="8">
         <el-card>
           <template #header><span>角色数量</span></template>
-          <div class="metric">{{ stats.totalRoles }}</div>
+          <div v-if="!loading" class="metric">{{ stats.totalRoles }}</div>
+          <el-skeleton v-else :rows="1" animated style="padding: 8px 0" />
         </el-card>
       </el-col>
     </el-row>

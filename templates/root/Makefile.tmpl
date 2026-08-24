@@ -2,7 +2,7 @@
 # 设计原则：只保留非技术用户会用到的命令
 {% if only == 'admin' %}
 # ============== admin mode ==============
-.PHONY: help start stop restart logs clean backend-dev frontend-dev install db-shell db-reset
+.PHONY: help start stop restart logs clean backend-dev frontend-dev install db-shell db-reset reset-admin backup restore
 
 help:           ## 显示帮助
 	@echo "可用命令："
@@ -25,7 +25,7 @@ install:        ## 安装依赖（后端 + 前端）
 	cd frontend && pnpm install || npm install
 
 backend-dev:    ## 启动后端（自动建表 + 种子）
-	cd backend && cp -n .env.example .env || true && uvicorn app.main:app --reload --host 0.0.0.0 --port {{ backend_port }}
+	cd backend && test -f .env || cp .env.example .env; uvicorn app.main:app --reload --host 0.0.0.0 --port {{ backend_port }}
 
 frontend-dev:   ## 启动前端
 	cd frontend && pnpm dev --port {{ frontend_port }}
@@ -37,11 +37,27 @@ db-reset:       ## ⚠️ 重置数据库（删除所有数据）
 	docker compose down -v && docker compose up -d
 	@echo "✅ 数据库已重置，重启后端让其重建"
 
+reset-admin:    ## 重置 admin 密码（随机生成并打印）
+	cd backend && python scripts/reset_admin.py
+
+# 指定密码：make admin-pass NEW=YourPass!2025
+admin-pass:     ## 重置 admin 密码为 NEW=... 指定值
+	cd backend && python scripts/reset_admin.py --password "$(NEW)"
+
+backup:         ## 备份数据库到 ./backups/
+	@mkdir -p backups
+	docker compose exec -T postgres env PGPASSWORD={{ db_password }} pg_dump -U {{ project_name }} > backups/backup_$$(date +%Y%m%d_%H%M%S).sql
+	@echo "✅ 备份完成：backups/"
+
+# 从备份恢复：make restore FILE=backups/backup_xxx.sql
+restore:        ## 从备份恢复（FILE=backups/backup_xxx.sql）
+	docker compose exec -T postgres env PGPASSWORD={{ db_password }} psql -U {{ project_name }} -d {{ project_name }} < $(FILE)
+
 clean:          ## ⚠️ 清理所有数据
 	docker compose down -v
 {% else %}
 # ============== server mode ==============
-.PHONY: help start stop restart logs clean install backend-dev db-shell db-reset
+.PHONY: help start stop restart logs clean install backend-dev db-shell db-reset reset-admin backup restore
 
 help:           ## 显示帮助
 	@echo "可用命令："
@@ -63,13 +79,29 @@ install:        ## 安装后端依赖
 	uv pip install -e ".[dev]" || pip install -e ".[dev]"
 
 backend-dev:    ## 启动后端
-	cp -n .env.example .env || true && uvicorn app.main:app --reload --host 0.0.0.0 --port {{ backend_port }}
+	test -f .env || cp .env.example .env; uvicorn app.main:app --reload --host 0.0.0.0 --port {{ backend_port }}
 
 db-shell:       ## 进入 postgres 命令行
 	docker compose exec postgres env PGPASSWORD={{ db_password }} psql -U {{ project_name }} -d {{ project_name }}
 
 db-reset:       ## ⚠️ 重置数据库（删除所有数据）
 	docker compose down -v && docker compose up -d
+
+reset-admin:    ## 重置 admin 密码（随机生成并打印）
+	python scripts/reset_admin.py
+
+# 指定密码：make admin-pass NEW=YourPass!2025
+admin-pass:     ## 重置 admin 密码为 NEW=... 指定值
+	python scripts/reset_admin.py --password "$(NEW)"
+
+backup:         ## 备份数据库到 ./backups/
+	@mkdir -p backups
+	docker compose exec -T postgres env PGPASSWORD={{ db_password }} pg_dump -U {{ project_name }} > backups/backup_$$(date +%Y%m%d_%H%M%S).sql
+	@echo "✅ 备份完成：backups/"
+
+# 从备份恢复：make restore FILE=backups/backup_xxx.sql
+restore:        ## 从备份恢复（FILE=backups/backup_xxx.sql）
+	docker compose exec -T postgres env PGPASSWORD={{ db_password }} psql -U {{ project_name }} -d {{ project_name }} < $(FILE)
 
 clean:          ## ⚠️ 清理所有数据
 	docker compose down -v

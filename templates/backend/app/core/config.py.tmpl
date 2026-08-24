@@ -68,17 +68,13 @@ class Settings(BaseSettings):
     WORKERS: int = 1
 
     # ---------- 数据库 ----------
-    DB_DRIVER: str = "{{ db_driver }}"  # asyncpg / aiomysql
+    # 默认 localhost：`make backend-dev` 在宿主机上跑 uvicorn，连宿主端口。
+    # 容器内部跑时改成 `postgres`（docker compose service name）
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = {{ postgres_port }}
     POSTGRES_USER: str = "{{ project_name }}"
     POSTGRES_PASSWORD: str = "{{ db_password }}"
     POSTGRES_DB: str = "{{ project_name }}"
-    MYSQL_HOST: str = "localhost"
-    MYSQL_PORT: int = 3306
-    MYSQL_USER: str = "{{ project_name }}"
-    MYSQL_PASSWORD: str = "{{ db_password }}"
-    MYSQL_DB: str = "{{ project_name }}"
     DB_ECHO: bool = False
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
@@ -90,19 +86,14 @@ class Settings(BaseSettings):
 
     @property
     def DATABASE_URL(self) -> str:
-        if self.DB_DRIVER in ("asyncpg", "psycopg2"):
-            return (
-                f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
-                f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
-            )
         return (
-            f"mysql+aiomysql://{self.MYSQL_USER}:{self.MYSQL_PASSWORD}"
-            f"@{self.MYSQL_HOST}:{self.MYSQL_PORT}/{self.MYSQL_DB}"
+            f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
+            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
 
     @property
     def ALEMBIC_DATABASE_URL(self) -> str:
-        """同步 URL——alembic 走同步路径，使用 psycopg2/mysqlclient。"""
+        """同步 URL——alembic 走同步路径，使用 psycopg2。"""
         return self.ALEMBIC_SYNC_URL
 {% if enable_redis %}
     # ---------- Redis ----------

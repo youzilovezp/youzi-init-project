@@ -75,10 +75,8 @@ def build_context(args: argparse.Namespace, middleware: dict) -> dict:
         "project_name": args.project_name,
         "project_title": args.project_title,
         "secret_key": secrets.token_hex(32),
-        # 数据库固定 postgresql（最通用）；如需 MySQL 修改 .env 的 DATABASE 字段
-        "db_driver": "asyncpg",
-        "database": "postgresql",
-        "enable_i18n": True,  # 内置中文 locale，无需开关
+        # 数据库固定 postgresql
+        "enable_i18n": True,
         "only": args.only,
         **middleware,
         # 端口：业界惯例
@@ -253,14 +251,14 @@ def init_git_safely(target_dir: Path) -> None:
 # ---------- Main ----------
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="初始化管理系统脚手架（默认 admin 模式，前后端 + postgresql + redis）"
+        description="初始化管理系统脚手架（默认 admin 模式：前后端 + postgresql + redis）"
     )
     parser.add_argument("project_name", help="项目名（kebab-case），如 my-app")
     parser.add_argument(
         "--only",
         choices=["admin", "ui", "server"],
-        default="admin",
-        help="输出范围：admin=前后端+中间件（默认）/ ui=仅前端 / server=仅后端",
+        default=None,
+        help="输出范围：默认 admin=前后端+中间件；ui=仅前端；server=仅后端",
     )
     parser.add_argument(
         "--title",
@@ -279,6 +277,10 @@ def main() -> int:
     if not args.project_name.replace("-", "").replace("_", "").isalnum():
         print("项目名只能包含字母、数字、- 和 _", file=sys.stderr)
         return 1
+
+    # 默认 admin 模式（最常见）
+    if args.only is None:
+        args.only = "admin"
 
     if args.project_title is None:
         args.project_title = (

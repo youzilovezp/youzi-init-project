@@ -1,47 +1,40 @@
-<div align="center">
-
-<img src="assets/logo.svg" width="96" alt="youzi-init-project logo"/>
-
 # 🍊 柚子脚手架 · 一站式项目初始化工具
 
 **`/yz-init-admin <name>` → 完整前后端 + 中间件 + 数据库自动维护 → 开箱即跑**
 
 ![License](https://img.shields.io/badge/License-MIT-orange.svg)
-![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)
 ![Python](https://img.shields.io/badge/Python-stdlib_only-3776AB.svg)
 ![Claude Code](https://img.shields.io/badge/Claude%20Code-Skill-blueviolet.svg)
 
-</div>
+## 这是什么？
 
-为非技术背景或新入职工程师提供"开箱即用"的脚手架，三个命令搞定三种粒度。
+给非技术背景或新入职工程师提供的脚手架工具。三条命令搞定三种粒度：
 
-## 三个命令
+| 命令                     | 输出                                                 | 典型场景               |
+| ------------------------ | ---------------------------------------------------- | ---------------------- |
+| `/yz-init-admin <name>`  | 后端 + 前端 + 中间件 + **数据库自动维护** + 本地调试 | 新建一套完整管理系统   |
+| `/yz-init-server <name>` | 后端 + 中间件 + **数据库自动维护** + 本地调试        | 新增/替换后端 API 工程 |
+| `/yz-init-ui <name>`     | 纯前端 + 本地调试                                    | 新增/替换前端工程      |
 
-| 命令                     | 输出                                                 |
-| ------------------------ | ---------------------------------------------------- |
-| `/yz-init-admin <name>`  | 后端 + 前端 + 中间件 + **数据库自动维护** + 本地调试 |
-| `/yz-init-server <name>` | 后端 + 中间件 + **数据库自动维护** + 本地调试        |
-| `/yz-init-ui <name>`     | 纯前端 + 本地调试                                    |
+> Claude Code 不支持 `:` 作为命令字符，所以三个独立 skill 用 `-` 分隔。
 
-> **说明**：Claude Code 不支持 `:` 作为 slash command 字符，所以三个独立 skill 用 `-` 分隔。
-
-## 它能做什么
+## 它能做什么？
 
 - **后端**：FastAPI + SQLAlchemy 2.0（异步）+ Pydantic v2 + JWT + Alembic
 - **前端**：Vue 3 + TypeScript + Vite + Pinia + Element Plus
-- **中间件**：PostgreSQL、Redis、RabbitMQ、MinIO、Celery（按需启用）
+- **中间件**：默认启动 PostgreSQL + Redis + **adminer 数据库 UI**（看数据用）
 - **代码与配置隔离**：通过 `.env` + pydantic-settings / Vite env 管理
 - **自带文档**：每个生成项目内含架构/技术栈/配置/开发/API 文档
 - **数据库自动维护**：首次启动自动建表 + stamp，后续启动自动跑迁移
 
 ## 先决条件
 
-| 工具           | 用途         | 安装                             |
-| -------------- | ------------ | -------------------------------- |
-| python3 ≥ 3.11 | 运行 init.py | 系统包管理器                     |
-| jinja2         | 模板渲染     | `pip install jinja2`             |
-| Docker         | 启动中间件   | [docker.com](https://docker.com) |
-| Claude Code    | 调用 skill   | claude.ai/code                   |
+| 工具         | 用途         | 安装                             |
+| ------------ | ------------ | -------------------------------- |
+| Python 3.11+ | 运行 init.py | 系统包管理器                     |
+| jinja2       | 模板渲染     | `pip install jinja2`             |
+| Docker       | 启动中间件   | [docker.com](https://docker.com) |
+| Claude Code  | 调用 skill   | claude.ai/code                   |
 
 ## 三步开始
 
@@ -52,7 +45,7 @@ cd /path/to/youzi-init-project
 ./install.sh install
 ```
 
-按提示确认后，会创建三个独立 skill 到 `~/.claude/skills/`。
+按提示确认后，会创建三个 skill 到 `~/.claude/skills/`。
 
 ### 2. 在 Claude Code 中使用
 
@@ -60,45 +53,42 @@ cd /path/to/youzi-init-project
 /yz-init-admin my-app
 ```
 
-按对话中的问题回答选择，skill 会自动生成 `my-app/` 目录。
+Claude 会询问项目显示名和初始管理员密码（都可回车跳过），确认后自动生成 `my-app/` 目录。
 
 ### 3. 启动新项目
 
 ```bash
 cd my-app
-make start          # 启动 PostgreSQL + Redis + adminer
-make backend-dev    # 终端 A：启动后端（http://localhost:8000）
-make frontend-dev   # 终端 B：启动前端（http://localhost:3000）
+make install       # 首次：安装依赖
+make start         # 启动 PostgreSQL + Redis + adminer
+make backend-dev   # 终端 A：启动后端
+make frontend-dev  # 终端 B：启动前端
 ```
 
-## 常用地址
+启动后访问：
 
-| 服务      | 地址                                             |
-| --------- | ------------------------------------------------ |
-| 前端      | http://localhost:3000                            |
-| 后端 API  | http://localhost:8000                            |
-| API 文档  | http://localhost:8000/docs                       |
-| 数据库 UI | http://localhost:8080（adminer，看数据用）       |
-| 默认账号  | `admin` / **随机生成的密码**（启动时控制台打印） |
-
-> ⚠️ 生产环境必须修改默认账号和 `SECRET_KEY`。
+| 服务      | 地址                                     |
+| --------- | ---------------------------------------- |
+| 前端      | http://localhost:3000                    |
+| 后端 API  | http://localhost:8000                    |
+| API 文档  | http://localhost:8000/docs               |
+| 数据库 UI | http://localhost:8080（adminer）         |
+| 默认账号  | `admin` / **启动时控制台打印的随机密码** |
 
 ## 三个模式速览
 
-| 模式       | 适合              | 启动命令 |
-| ---------- | ----------------- | -------- |
-| **admin**  | 新建一套完整系统  |          | `make backend-dev` + `make frontend-dev` |
-| **server** | 新增/替换后端 API |          | `make backend-dev`                       |
-| **ui**     | 新增/替换前端     |          | `pnpm dev`                               |
+| 模式       | 适合              | 启动                                     |
+| ---------- | ----------------- | ---------------------------------------- |
+| **admin**  | 新建一套完整系统  | `make backend-dev` + `make frontend-dev` |
+| **server** | 新增/替换后端 API | `make backend-dev`                       |
+| **ui**     | 新增/替换前端     | `pnpm dev`                               |
 
 ## 详细文档
 
-| 文档                                                                 | 内容                                     |
-| -------------------------------------------------------------------- | ---------------------------------------- |
-| [安装说明.md](安装说明.md)                                           | 安装 / 卸载 / 更新 / 高级选项 / 常见问题 |
-| [templates/skills/admin/SKILL.md](templates/skills/admin/SKILL.md)   | admin 模式的完整说明                     |
-| [templates/skills/server/SKILL.md](templates/skills/server/SKILL.md) | server 模式的完整说明                    |
-| [templates/skills/ui/SKILL.md](templates/skills/ui/SKILL.md)         | ui 模式的完整说明                        |
+- [安装说明.md](安装说明.md) — 安装 / 卸载 / 更新 / 高级选项 / 常见问题
+- [templates/skills/admin/SKILL.md](templates/skills/admin/SKILL.md) — admin 模式的完整说明
+- [templates/skills/server/SKILL.md](templates/skills/server/SKILL.md) — server 模式的完整说明
+- [templates/skills/ui/SKILL.md](templates/skills/ui/SKILL.md) — ui 模式的完整说明
 
 ## 仓库结构
 
@@ -108,12 +98,13 @@ youzi-init-project/
 ├── 项目说明.md             # 本文档（项目总览）
 ├── 安装说明.md             # 运维参考
 ├── scripts/
-│   └── init.py           # 模板渲染脚本
+│   ├── init.py           # 模板渲染脚本（admin/server/ui 三模式）
+│   └── add_module.py     # 给生成项目加业务模块（model/schema/crud/router/view/api）
 └── templates/
-    ├── backend/          # 后端模板
-    ├── frontend/         # 前端模板
-    ├── root/             # 根级（中间件 + 文档）
-    └── skills/           # 三个独立 SKILL.md
+    ├── backend/          # 后端模板（FastAPI）
+    ├── frontend/         # 前端模板（Vue 3）
+    ├── root/             # 根级（中间件 compose + Makefile + 文档）
+    └── skills/           # 三个独立 SKILL.md（admin / server / ui）
 ```
 
 ## 许可证
