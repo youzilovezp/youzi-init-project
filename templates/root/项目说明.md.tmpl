@@ -5,7 +5,7 @@
 ## 一键启动
 
 ```bash
-# 1. 启动所有中间件
+# 1. 启动所有中间件（含 adminer 数据库 UI）
 make start
 
 # 2. 启动后端（新终端）
@@ -17,9 +17,10 @@ make frontend-dev
 
 访问：
 
-- 前端：http://localhost:59000
-- 后端 API：http://localhost:59001
-- API 文档：http://localhost:59001/docs
+- 前端：http://localhost:3000
+- 后端 API：http://localhost:8000
+- API 文档：http://localhost:8000/docs
+- 数据库 UI：http://localhost:8080（adminer，看数据用）
 - 默认账号：`{{ admin_user }}` / **启动时控制台打印的随机密码**（或 `.env` 中 `INITIAL_ADMIN_PASSWORD`）
 
 ## 项目结构
@@ -110,8 +111,8 @@ uvicorn app.main:app --reload
 
 访问：
 
-- 后端 API：http://localhost:59001
-- API 文档：http://localhost:59001/docs
+- 后端 API：http://localhost:{{ backend_port }}
+- API 文档：http://localhost:{{ backend_port }}/docs
 - 默认账号：`{{ admin_user }}` / **启动时控制台打印的随机密码**（或 `.env` 中 `INITIAL_ADMIN_PASSWORD`）
 
 ## 项目结构

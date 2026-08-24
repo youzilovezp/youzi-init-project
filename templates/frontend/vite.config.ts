@@ -27,10 +27,10 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       host: '0.0.0.0',
-      port: 59000,
+      port: 3000,
       proxy: {
         '/api': {
-          target: env.VITE_PROXY_TARGET || 'http://localhost:59001',
+          target: env.VITE_PROXY_TARGET || 'http://localhost:8000',
           changeOrigin: true,
         },
       },

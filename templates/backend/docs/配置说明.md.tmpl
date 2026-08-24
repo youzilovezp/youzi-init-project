@@ -89,7 +89,7 @@
 ### CORS
 
 ```env
-CORS_ORIGINS=["http://localhost:59000","http://localhost:3000"]
+CORS_ORIGINS=["http://localhost:{{ frontend_port }}","http://localhost:3000"]
 ```
 
 JSON 数组格式，按需添加域名。生产环境只保留可信域名。

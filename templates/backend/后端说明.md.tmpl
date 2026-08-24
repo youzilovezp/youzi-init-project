@@ -22,7 +22,7 @@ uvicorn app.main:app --reload
 
 启动后访问：
 
-- API 文档：http://localhost:59001/docs
+- API 文档：http://localhost:{{ backend_port }}/docs
 - 默认账号：`{{ admin_user }}` / **启动时控制台打印的随机密码**（或 `.env` 中 `INITIAL_ADMIN_PASSWORD`）
 
 ## 目录结构

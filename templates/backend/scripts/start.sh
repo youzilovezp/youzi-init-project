@@ -10,9 +10,9 @@ if [ ! -f ".env" ]; then
     exit 1
 fi
 
-# 从 .env 读取 PORT，默认 59001
+# 从 .env 读取 PORT，默认 8000
 PORT="$(grep -E '^PORT=' .env | cut -d= -f2 | tr -d '[:space:]')"
-PORT="${PORT:-59001}"
+PORT="${PORT:-8000}"
 
 echo "🚀 启动开发服务器（端口：$PORT）..."
 exec uvicorn app.main:app --reload --host 0.0.0.0 --port "$PORT"

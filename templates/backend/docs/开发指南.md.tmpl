@@ -83,7 +83,7 @@ make db-restore FILE=backups/backup_xxx.sql
 ./scripts/start.sh
 
 # 方式二：直接
-uvicorn app.main:app --reload --host 0.0.0.0 --port 59001
+uvicorn app.main:app --reload --host 0.0.0.0 --port {{ backend_port }}
 
 # 方式三：Makefile（在工程根目录）
 make backend-dev
@@ -101,9 +101,9 @@ make backend-dev
 
 启动后访问：
 
-- Swagger UI：http://localhost:59001/docs
-- ReDoc：http://localhost:59001/redoc
-- 健康检查：http://localhost:59001/health
+- Swagger UI：http://localhost:{{ backend_port }}/docs
+- ReDoc：http://localhost:{{ backend_port }}/redoc
+- 健康检查：http://localhost:{{ backend_port }}/health
 
 ## 7. 默认账号
 

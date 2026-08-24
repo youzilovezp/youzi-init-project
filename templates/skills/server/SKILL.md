@@ -1,6 +1,6 @@
 ---
 name: yz-init-server
-description: 一键初始化后端 API 工程（纯后端 + 中间件 + 数据库自动维护 + 本地调试）。触发命令：「/yz-init-server」。其他两种模式：「/yz-init-admin」（完整前后端）、「/yz-init-ui」（仅前端）。
+description: 一键初始化后端 API 工程（FastAPI + postgresql + redis + adminer 数据库 UI + 自动维护表结构）。触发命令：「/yz-init-server」。其他两种模式：「/yz-init-admin」（完整前后端）、「/yz-init-ui」（仅前端）。
 ---
 
 # yz-init-server 技能
@@ -13,46 +13,49 @@ description: 一键初始化后端 API 工程（纯后端 + 中间件 + 数据�
 /yz-init-server my-api
 ```
 
-随后会通过 AskUserQuestion 收集技术选型与中间件选项，确认后自动生成。
+随后 Claude 会询问项目显示名（可选）和初始管理员密码（可选），其余参数走默认值。确认后自动生成。
 
-## 交互式输入
+## 默认配置
 
-| 问题                 | 默认值      |
-| -------------------- | ----------- |
-| 项目名（kebab-case） | `{{input}}` |
-| 后端框架             | FastAPI     |
-| 数据库               | PostgreSQL  |
-| 启用 Redis 缓存      | ✅          |
-| 启用 RabbitMQ        | ⬜          |
-| 启用 Celery 异步任务 | ⬜          |
-| 启用 MinIO 对象存储  | ⬜          |
-| 初始化 git           | ⬜          |
+| 项目       | 默认值                                 |
+| ---------- | -------------------------------------- |
+| 后端框架   | FastAPI                                |
+| 数据库     | PostgreSQL                             |
+| Redis 缓存 | ✅                                     |
+| RabbitMQ   | ⬜（ENV: `ENABLE_RABBITMQ=true` 启用） |
+| Celery     | ⬜（ENV: `ENABLE_CELERY=true` 启用）   |
+| MinIO      | ⬜（ENV: `ENABLE_MINIO=true` 启用）    |
+| 后端端口   | 8000                                   |
+| adminer UI | http://localhost:8080                  |
 
 ## 输出结构
 
 ```
-<project-name>/
+my-api/
 ├── app/                       # FastAPI 应用（分层）
 ├── alembic/                   # 数据库迁移
 ├── docs/                      # 架构/技术栈/配置/开发/API 文档
 ├── tests/
-├── docker/
+├── docker/                    # Dockerfile
 ├── .env                       # 自动生成（含随机 SECRET_KEY）
 ├── .env.example
 ├── pyproject.toml
 ├── alembic.ini
-├── docker-compose.yml         # 一键启动中间件
-├── Makefile                   # start / stop / logs / backend-dev / install
+├── docker-compose.yml         # postgres + redis + adminer
+├── Makefile                   # start/stop/logs/install/backend-dev/db-shell/db-reset
 └── 后端说明.md
 ```
 
-## 执行流程
+## 启动流程
 
-1. 收集用户输入（AskUserQuestion）
-2. 调用 `scripts/init.py <name> --only server [其它选项]`
-3. 渲染 `templates/backend/*` + `templates/root/*`，替换变量
-4. 复制到目标目录
-5. 输出启动指引：`cd <project-name> && make start && make backend-dev`
+```bash
+cd my-api
+make start          # 启动中间件（postgres + redis + adminer）
+make install        # 安装后端依赖
+make backend-dev    # 启动 FastAPI 开发服务器
+# 访问 http://localhost:8000/docs
+# 数据库 UI： http://localhost:8080
+```
 
 ## 数据库自动维护
 
@@ -61,18 +64,8 @@ description: 一键初始化后端 API 工程（纯后端 + 中间件 + 数据�
 | 首次启动 | 自动 `create_all` 建表 + `alembic stamp head` + 插入种子数据 |
 | 后续启动 | 自动 `alembic upgrade head` + 插入缺失的种子数据             |
 
-## 典型启动流程
-
-```bash
-cd my-api
-make start          # 启动中间件
-make install        # 安装后端依赖
-make backend-dev    # 启动 FastAPI 开发服务器
-# 访问 http://localhost:59001/docs
-```
-
 ## 与其他命令的关系
 
-- `/yz-init-server <name>`：本 skill，纯后端 + 中间件
-- `/yz-init-admin <name>`：完整前后端（详见 yz-init-admin skill）
-- `/yz-init-ui <name>`：仅前端（详见 yz-init-ui skill）
+- `/yz-init-server <name>`：本技能，纯后端 + 中间件
+- `/yz-init-admin <name>`：完整前后端
+- `/yz-init-ui <name>`：仅前端
