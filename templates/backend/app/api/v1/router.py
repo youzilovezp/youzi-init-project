@@ -2,9 +2,11 @@
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, users, roles
+from app.api.v1.endpoints import auth, roles, users
+from app.api.v1.endpoints.stats import router as stats_router
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["认证"])
 api_router.include_router(users.router, prefix="/users", tags=["用户管理"])
 api_router.include_router(roles.router, prefix="/roles", tags=["角色管理"])
+api_router.include_router(stats_router, prefix="/stats", tags=["统计"])

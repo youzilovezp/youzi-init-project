@@ -2,12 +2,12 @@
 {{ project_title }} - FastAPI 应用入口。
 
 启动方式：
-    uvicorn app.main:app --reload --host 0.0.0.0 --port 59001
+    uvicorn app.main:app --reload --host 0.0.0.0 --port {{ backend_port }}
 
 文档地址：
-    Swagger:   http://localhost:59001/docs
-    ReDoc:     http://localhost:59001/redoc
-    OpenAPI:   http://localhost:59001/api/v1/openapi.json
+    Swagger:   http://localhost:{{ backend_port }}/docs
+    ReDoc:     http://localhost:{{ backend_port }}/redoc
+    OpenAPI:   http://localhost:{{ backend_port }}/api/v1/openapi.json
 """
 from contextlib import asynccontextmanager
 

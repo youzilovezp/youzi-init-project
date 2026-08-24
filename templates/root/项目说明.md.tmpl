@@ -20,7 +20,7 @@ make frontend-dev
 - 前端：http://localhost:59000
 - 后端 API：http://localhost:59001
 - API 文档：http://localhost:59001/docs
-- 默认账号：`admin` / `youzi@123456`
+- 默认账号：`{{ admin_user }}` / **启动时控制台打印的随机密码**（或 `.env` 中 `INITIAL_ADMIN_PASSWORD`）
 
 ## 项目结构
 
@@ -34,7 +34,7 @@ make frontend-dev
 │   ├── docker/
 │   ├── pyproject.toml
 │   ├── .env.example
-│   └── README.md
+│   └── 后端说明.md
 ├── frontend/               # 前端（Vue 3 + TS）
 │   ├── src/
 │   ├── docs/
@@ -42,10 +42,10 @@ make frontend-dev
 │   ├── vite.config.ts
 │   ├── tsconfig.json
 │   ├── .env.development
-│   └── README.md
+│   └── 前端说明.md
 ├── docker-compose.yml      # 一键启动中间件
 ├── Makefile                # 常用命令
-└── README.md
+└── 项目说明.md
 ```
 
 ## 中间件
@@ -66,17 +66,17 @@ make frontend-dev
 ## 文档导航
 
 ### 后端
-- [架构说明](backend/docs/ARCHITECTURE.md)
-- [技术栈说明](backend/docs/TECH_STACK.md)
-- [配置说明](backend/docs/CONFIG.md)
-- [开发指南](backend/docs/DEVELOPMENT.md)
-- [API 文档](backend/docs/API.md)
+- [架构说明](backend/docs/架构说明.md)
+- [技术栈](backend/docs/技术栈.md)
+- [配置说明](backend/docs/配置说明.md)
+- [开发指南](backend/docs/开发指南.md)
+- [API 文档](backend/docs/API文档.md)
 
 ### 前端
-- [架构说明](frontend/docs/ARCHITECTURE.md)
-- [技术栈说明](frontend/docs/TECH_STACK.md)
-- [配置说明](frontend/docs/CONFIG.md)
-- [开发指南](frontend/docs/DEVELOPMENT.md)
+- [架构说明](frontend/docs/架构说明.md)
+- [技术栈](frontend/docs/技术栈.md)
+- [配置说明](frontend/docs/配置说明.md)
+- [开发指南](frontend/docs/开发指南.md)
 
 ## 常用命令
 
@@ -112,7 +112,7 @@ uvicorn app.main:app --reload
 
 - 后端 API：http://localhost:59001
 - API 文档：http://localhost:59001/docs
-- 默认账号：`admin` / `youzi@123456`
+- 默认账号：`{{ admin_user }}` / **启动时控制台打印的随机密码**（或 `.env` 中 `INITIAL_ADMIN_PASSWORD`）
 
 ## 项目结构
 
@@ -138,7 +138,7 @@ uvicorn app.main:app --reload
 ├── alembic.ini           # Alembic 配置
 ├── docker-compose.yml    # 一键启动中间件
 ├── Makefile              # 常用命令
-└── README.md
+└── 后端说明.md
 ```
 
 ## 中间件
@@ -158,11 +158,11 @@ uvicorn app.main:app --reload
 
 ## 文档导航
 
-- [架构说明](docs/ARCHITECTURE.md)
-- [技术栈说明](docs/TECH_STACK.md)
-- [配置说明](docs/CONFIG.md)
-- [开发指南](docs/DEVELOPMENT.md)
-- [API 文档](docs/API.md)
+- [架构说明](docs/架构说明.md)
+- [技术栈](docs/技术栈.md)
+- [配置说明](docs/配置说明.md)
+- [开发指南](docs/开发指南.md)
+- [API 文档](docs/API文档.md)
 
 ## 常用命令
 

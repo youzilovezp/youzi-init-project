@@ -1,9 +1,16 @@
 """用户 ORM 模型。"""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from sqlalchemy import Boolean, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base_class import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.role import Role
 
 
 class User(Base, TimestampMixin):
@@ -24,7 +31,9 @@ class User(Base, TimestampMixin):
     role_id: Mapped[int | None] = mapped_column(
         ForeignKey("roles.id", ondelete="SET NULL")
     )
-    role: Mapped["Role"] = relationship("Role", back_populates="users", lazy="joined")  # noqa: F821
+    role: Mapped[Role | None] = relationship(
+        "Role", back_populates="users", lazy="joined"
+    )
 
     def __repr__(self) -> str:
         return f"<User id={self.id} username={self.username}>"

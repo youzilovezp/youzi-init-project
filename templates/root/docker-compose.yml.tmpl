@@ -1,19 +1,16 @@
 # 一键启动 {{ project_title }} 所有依赖
 # 用法：docker compose up -d
 
-version: '3.9'
-
 services:
   postgres:
     image: postgres:16-alpine
     container_name: {{ project_name }}-postgres
-    restart: unless-stopped
     environment:
       POSTGRES_USER: {{ project_name }}
-      POSTGRES_PASSWORD: {{ project_name }}
+      POSTGRES_PASSWORD: {{ db_password }}
       POSTGRES_DB: {{ project_name }}
     ports:
-      - "5432:5432"
+      - "{{ postgres_port }}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -25,9 +22,8 @@ services:
   redis:
     image: redis:7-alpine
     container_name: {{ project_name }}-redis
-    restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "{{ redis_port }}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -40,13 +36,12 @@ services:
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: {{ project_name }}-rabbitmq
-    restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: {{ project_name }}
-      RABBITMQ_DEFAULT_PASS: {{ project_name }}
+      RABBITMQ_DEFAULT_PASS: {{ rabbitmq_password }}
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "{{ rabbitmq_port }}:5672"
+      - "{{ rabbitmq_mgmt_port }}:15672"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
@@ -59,14 +54,13 @@ services:
   minio:
     image: minio/minio:latest
     container_name: {{ project_name }}-minio
-    restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: {{ minio_user }}
+      MINIO_ROOT_PASSWORD: {{ minio_password }}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "{{ minio_api_port }}:9000"
+      - "{{ minio_console_port }}:9001"
     volumes:
       - minio_data:/data
     healthcheck:

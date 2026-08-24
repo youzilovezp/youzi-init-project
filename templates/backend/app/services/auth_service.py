@@ -13,8 +13,20 @@ from app.schemas.user import LoginRequest, LoginResponse, UserOut
 
 class AuthService:
     async def login(self, db: AsyncSession, payload: LoginRequest) -> LoginResponse:
-        user = await user_crud.get_by_username(db, payload.username)
-        if user is None or not verify_password(payload.password, user.password_hash):
+        # OAuth2PasswordRequestForm 提交时 username/password 是 bytes，统一解码
+        username = (
+            payload.username.decode("utf-8")
+            if isinstance(payload.username, bytes)
+            else payload.username
+        )
+        password = (
+            payload.password.decode("utf-8")
+            if isinstance(payload.password, bytes)
+            else payload.password
+        )
+
+        user = await user_crud.get_by_username(db, username)
+        if user is None or not verify_password(password, user.password_hash):
             raise AuthError("用户名或密码错误")
         if not user.is_active:
             raise AuthError("账号已被禁用")

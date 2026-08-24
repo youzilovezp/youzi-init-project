@@ -12,8 +12,8 @@ const formRef = ref<FormInstance>()
 const loading = ref(false)
 
 const form = reactive({
-  username: 'admin',
-  password: 'admin@123456',
+  username: '',
+  password: '',
 })
 
 const rules: FormRules = {
@@ -41,7 +41,7 @@ async function onSubmit() {
 <template>
   <div class="login-page">
     <div class="login-box">
-      <h1 class="title">{{ '{{ project_title }}' }}</h1>
+      <h1 class="title">Youzi Admin</h1>
       <p class="subtitle">管理系统</p>
 
       <el-form ref="formRef" :model="form" :rules="rules" size="large" @keyup.enter="onSubmit">
@@ -64,7 +64,7 @@ async function onSubmit() {
         </el-form-item>
       </el-form>
 
-      <p class="tips">默认账号：admin / admin@123456</p>
+      <p class="tips">首次登录请使用后端启动时控制台打印的随机密码（详见后端说明）</p>
     </div>
   </div>
 </template>

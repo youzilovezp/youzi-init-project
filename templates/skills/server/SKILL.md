@@ -3,7 +3,7 @@ name: yz-init-server
 description: 一键初始化后端 API 工程（纯后端 + 中间件 + 数据库自动维护 + 本地调试）。触发命令：「/yz-init-server」。其他两种模式：「/yz-init-admin」（完整前后端）、「/yz-init-ui」（仅前端）。
 ---
 
-# yz-init-server Skill
+# yz-init-server 技能
 
 为非技术背景或新入职工程师提供一个"开箱即用"的后端 API 工程脚手架。
 
@@ -43,7 +43,7 @@ description: 一键初始化后端 API 工程（纯后端 + 中间件 + 数据�
 ├── alembic.ini
 ├── docker-compose.yml         # 一键启动中间件
 ├── Makefile                   # start / stop / logs / backend-dev / install
-└── README.md
+└── 后端说明.md
 ```
 
 ## 执行流程

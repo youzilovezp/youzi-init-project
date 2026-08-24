@@ -1,25 +1,12 @@
 // 全局类型声明
-
-declare module '*.vue' {
-  import type { DefineComponent } from 'vue'
-  const component: DefineComponent<Record<string, unknown>, Record<string, unknown>, unknown>
-  export default component
-}
-
-declare module '*.svg' {
-  const content: string
-  export default content
-}
-
-declare module '*.png' | '*.jpg' | '*.jpeg' | '*.gif' {
-  const content: string
-  export default content
-}
+// 注：vite/client 已提供 *.vue / *.svg / *.png 等资源模块声明，无需重复
+// 这里只补充项目自定义的 VITE_* 环境变量类型
 
 interface ImportMetaEnv {
   readonly VITE_APP_TITLE: string
   readonly VITE_API_BASE_URL: string
   readonly VITE_TOKEN_KEY?: string
+  readonly VITE_PROXY_TARGET?: string
 }
 
 interface ImportMeta {

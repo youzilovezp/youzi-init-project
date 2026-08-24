@@ -107,8 +107,8 @@ make backend-dev
 
 ## 7. 默认账号
 
-- 用户名：`admin`（或 `.env` 中 `INITIAL_ADMIN_USERNAME`）
-- 密码：`youzi@123456`（或 `.env` 中 `INITIAL_ADMIN_PASSWORD`）
+- 用户名：`{{ admin_user }}`（或 `.env` 中 `INITIAL_ADMIN_USERNAME`）
+- 密码：启动后端时控制台会打印随机生成的密码（或 `.env` 中 `INITIAL_ADMIN_PASSWORD`）
 
 > ⚠️ 生产环境必须立即修改默认密码。
 

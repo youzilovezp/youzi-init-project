@@ -3,7 +3,7 @@ name: yz-init-admin
 description: 一键初始化完整的管理系统（后端 + 前端 + 中间件 + 数据库自动维护 + 本地调试）。触发命令：「/yz-init-admin」。其他两种模式：「/yz-init-server」（后端 + 中间件）、「/yz-init-ui」（仅前端）。
 ---
 
-# yz-init-admin Skill
+# yz-init-admin 技能
 
 为非技术背景或新入职工程师提供一个"开箱即用"的完整管理系统脚手架。
 
@@ -37,7 +37,7 @@ description: 一键初始化完整的管理系统（后端 + 前端 + 中间件 
 ├── docker-compose.yml        # 一键启动所有中间件
 ├── Makefile                  # run / start / stop / logs / clean
 ├── .gitignore
-└── README.md                 # 总入口文档
+└── 项目说明.md                 # 总入口文档
 ```
 
 ## 执行流程

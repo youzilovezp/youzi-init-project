@@ -40,6 +40,24 @@ def _wrap(code: int, message: str, data=None) -> dict:
     return {"code": code, "message": message, "data": data}
 
 
+def _coerce_to_str(value: object) -> object:
+    """把异常信息里的 bytes / 嵌套结构统一转换为 JSON 安全的类型。
+    否则 `bytes is not JSON serializable` 会让 500 退化成 500 的再 500。
+    """
+    if isinstance(value, bytes):
+        try:
+            return value.decode("utf-8", errors="replace")
+        except Exception:
+            return repr(value)
+    if isinstance(value, dict):
+        return {k: _coerce_to_str(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_coerce_to_str(v) for v in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return repr(value)
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(BusinessError)
     async def business_handler(_: Request, exc: BusinessError) -> JSONResponse:
@@ -51,15 +69,18 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def validation_handler(
         _: Request, exc: RequestValidationError
     ) -> JSONResponse:
+        # exc.errors() 可能含 bytes（如 form-encoded body 失败时），必须 coerce
+        safe_errors = _coerce_to_str(exc.errors())
         return JSONResponse(
             status_code=422,
-            content=_wrap(42200, "参数校验失败", exc.errors()),
+            content=_wrap(42200, "参数校验失败", safe_errors),
         )
 
     @app.exception_handler(Exception)
     async def unhandled_handler(_: Request, exc: Exception) -> JSONResponse:
-        # 生产环境不要回显堆栈
+        msg = str(exc)
+        safe_msg = _coerce_to_str(msg)
         return JSONResponse(
             status_code=500,
-            content=_wrap(50000, f"服务器内部错误: {exc!s}"),
+            content=_wrap(50000, f"服务器内部错误: {safe_msg}"),
         )

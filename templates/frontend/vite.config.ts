@@ -10,8 +10,15 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       vue(),
-      AutoImport({ resolvers: [ElementPlusResolver()] }),
-      Components({ resolvers: [ElementPlusResolver()] }),
+      AutoImport({
+        resolvers: [ElementPlusResolver()],
+        dts: 'auto-imports.d.ts',
+        eslintrc: { enabled: false },
+      }),
+      Components({
+        resolvers: [ElementPlusResolver()],
+        dts: 'components.d.ts',
+      }),
     ],
     resolve: {
       alias: {

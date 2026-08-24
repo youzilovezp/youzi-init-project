@@ -3,7 +3,7 @@ name: yz-init-ui
 description: 一键初始化前端工程（Vue 3 + TS + Vite + Element Plus，支持本地调试）。触发命令：「/yz-init-ui」。其他两种模式：「/yz-init-admin」（完整前后端）、「/yz-init-server」（后端 + 中间件）。
 ---
 
-# yz-init-ui Skill
+# yz-init-ui 技能
 
 为非技术背景或新入职工程师提供一个"开箱即用"的前端工程脚手架。
 
@@ -48,7 +48,7 @@ description: 一键初始化前端工程（Vue 3 + TS + Vite + Element Plus，�
 ├── package.json
 ├── vite.config.ts
 ├── tsconfig.json
-└── README.md
+└── 前端说明.md
 ```
 
 ## 执行流程

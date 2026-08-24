@@ -39,6 +39,7 @@ function openEdit(row: Role) {
 }
 
 async function handleSubmit() {
+  if (!formRef.value) return
   await formRef.value.validate(async (valid: boolean) => {
     if (!valid) return
     if (dialogMode.value === 'create') {
@@ -79,9 +80,9 @@ onMounted(fetchData)
           <template #default="{ row }">{{ new Date(row.created_at).toLocaleString() }}</template>
         </el-table-column>
         <el-table-column label="操作" width="160" fixed="right">
-          <template #default="{ row }">
-            <el-button type="primary" link @click="openEdit(row)">编辑</el-button>
-            <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
+          <template #default="scope">
+            <el-button type="primary" link @click="openEdit(scope.row as Role)">编辑</el-button>
+            <el-button type="danger" link @click="handleDelete(scope.row as Role)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>

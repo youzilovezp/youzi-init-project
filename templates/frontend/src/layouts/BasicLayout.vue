@@ -33,7 +33,7 @@ const filteredMenus = computed(() => {
       }
       return m
     })
-    .filter(Boolean)
+    .filter((m): m is NonNullable<typeof m> => m !== null)
 })
 
 const activeMenu = computed(() => route.path)
@@ -55,7 +55,7 @@ async function handleLogout() {
   <el-container class="layout-container">
     <!-- 侧边栏 -->
     <el-aside :width="appStore.sidebarCollapsed ? '64px' : '220px'" class="layout-aside">
-      <div class="logo">{{ appStore.sidebarCollapsed ? 'M' : '{{ project_title }}' }}</div>
+      <div class="logo">{{ appStore.sidebarCollapsed ? 'M' : 'Youzi Admin' }}</div>
       <el-menu
         :default-active="activeMenu"
         :collapse="appStore.sidebarCollapsed"

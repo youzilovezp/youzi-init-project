@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import * as userApi from '@/api/user'
 import * as roleApi from '@/api/role'
 import type { UserInfo } from '@/api/types'
@@ -20,7 +20,13 @@ const query = reactive({
 
 const dialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
-const formRef = ref()
+const formRef = ref<FormInstance>()
+
+const formRules: FormRules = {
+  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+  email: [{ type: 'email', message: '邮箱格式不正确', trigger: 'blur' }],
+}
 const form = reactive({
   id: 0,
   username: '',
@@ -69,6 +75,7 @@ function openEdit(row: UserInfo) {
 }
 
 async function handleSubmit() {
+  if (!formRef.value) return
   await formRef.value.validate(async (valid: boolean) => {
     if (!valid) return
     if (dialogMode.value === 'create') {
@@ -149,9 +156,9 @@ onMounted(() => {
           <template #default="{ row }">{{ new Date(row.created_at).toLocaleString() }}</template>
         </el-table-column>
         <el-table-column label="操作" width="200" fixed="right">
-          <template #default="{ row }">
-            <el-button type="primary" link @click="openEdit(row)">编辑</el-button>
-            <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
+          <template #default="scope">
+            <el-button type="primary" link @click="openEdit(scope.row as UserInfo)">编辑</el-button>
+            <el-button type="danger" link @click="handleDelete(scope.row as UserInfo)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -175,7 +182,7 @@ onMounted(() => {
       :title="dialogMode === 'create' ? '新增用户' : '编辑用户'"
       width="500px"
     >
-      <el-form ref="formRef" :model="form" label-width="80px">
+      <el-form ref="formRef" :model="form" :rules="formRules" label-width="80px">
         <el-form-item label="用户名" prop="username">
           <el-input v-model="form.username" :disabled="dialogMode === 'edit'" />
         </el-form-item>

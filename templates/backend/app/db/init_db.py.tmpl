@@ -1,19 +1,17 @@
 """
-数据库初始化：智能维护表结构 + 种子数据。
+数据库初始化：表结构 + 种子数据。
 
-设计目标：让"非技术"用户零配置即可启动。
+行为（单一开关 AUTO_INIT_DB）：
 
-启动行为矩阵（取决于 settings 中的开关）：
+| AUTO_INIT_DB | 首次启动 (无 alembic_version 表) | 后续启动 |
+|---|---|---|
+| true          | metadata.create_all + alembic stamp head + 种子 | alembic upgrade head + 种子补全 |
+| false         | 不动 | 不动 |
 
-| 状态                | AUTO_CREATE_TABLES | AUTO_MIGRATE | 行为                                     |
-|--------------------|--------------------|--------------|------------------------------------------|
-| 首次启动（无表）| ✅                 | ✅                 | create_all 建表 → alembic stamp head → 种子 |
-| 首次启动（无表）| ✅                 | ❌                 | create_all 建表 → 种子                       |
-| 后续启动（有表）| -                  | ✅                 | alembic upgrade head → 种子                  |
-| 后续启动（有表）| -                  | ❌                 | 不动表结构 → 种子                             |
-| 生产环境（关掉所有）| ❌                 | ❌                 | 完全不维护表结构，由运维手工跑 alembic           |
+任何步骤失败只记录警告，不阻塞启动。
 
-任何步骤失败都只记录警告，**不会阻塞应用启动**。
+Alembic 用**子进程**调用：避免 alembic 的 logging/signal 副作用污染
+uvicorn lifespan 的 asynccontextmanager（直接 in-process 调用会卡 yield）。
 """
 import asyncio
 from pathlib import Path
@@ -30,7 +28,7 @@ from app.models.role import Role
 from app.models.menu import Menu  # noqa: F401  触发模型注册
 
 
-# ---------- 表操作 ----------
+# ---------- Async 表操作 ----------
 async def create_tables() -> None:
     """使用 SQLAlchemy metadata 自动建表。"""
     async with engine.begin() as conn:
@@ -40,6 +38,7 @@ async def create_tables() -> None:
 
 async def has_alembic_version_table() -> bool:
     """检查是否存在 alembic_version 表（用于判断是否首次启动）。"""
+
     def _check(sync_conn) -> bool:
         inspector = inspect(sync_conn)
         return inspector.has_table("alembic_version")
@@ -48,61 +47,62 @@ async def has_alembic_version_table() -> bool:
         return await conn.run_sync(_check)
 
 
-# ---------- Alembic Python API（不依赖 PATH） ----------
+# ---------- Alembic：完全同步路径 ----------
 def _find_alembic_ini() -> Path:
-    """根据当前工作目录定位 alembic.ini。
-
-    - admin 模式：backend/alembic.ini
-    - server 模式：./alembic.ini
-    """
+    """定位 alembic.ini（admin 模式 backend/，server 模式 根）。"""
     candidates = [Path.cwd() / "alembic.ini", Path.cwd() / "backend" / "alembic.ini"]
     for c in candidates:
         if c.exists():
             return c
-    # 兜底：项目根目录
     return candidates[0]
 
 
-def _run_alembic_sync(*args: str) -> tuple[int, str, str]:
-    """使用 Alembic Python API 调用命令（不依赖 PATH 中的 alembic 可执行文件）。"""
-    # 在子线程中调用，避免 alembic 把日志污染到主进程
-    from alembic.config import Config
-    from alembic import command
+def _run_alembic_subprocess(*args: str) -> tuple[int, str]:
+    """用子进程调用 alembic——彻底隔离 alembic 与 uvicorn 事件循环。
 
-    try:
-        ini_path = _find_alembic_ini()
-        cfg = Config(str(ini_path))
-        cfg.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
-        func_name, *rest = args
-        getattr(command, func_name)(cfg, *rest)
-        return (0, "", "")
-    except SystemExit as exc:
-        # alembic 在错误时调用 sys.exit()
-        return (int(exc.code) if isinstance(exc.code, int) else 1, "", "alembic exited")
-    except Exception as exc:
-        return (1, "", str(exc))
+    为什么不用 asyncio.to_thread：alembic 的 command.X 在内部会修改 logging 配置、
+    注册 signal handler、甚至 sys.exit()，副作用会污染 uvicorn lifespan 的
+    asynccontextmanager，导致 yield 之后 uvicorn 永远不打印
+    "Application startup complete"（持续返回 502）。
 
+    子进程方案：完全隔离，最干净。代价：多一次进程启动，但 init_db 只在
+    启动时跑一次，性能可接受。
+    """
+    import subprocess
+    import sys
 
-async def _alembic_upgrade_head() -> None:
-    """异步执行 alembic upgrade head（在线程池中跑，避免阻塞事件循环）。"""
-    loop = asyncio.get_event_loop()
-    code, stdout, stderr = await loop.run_in_executor(None, _run_alembic_sync, "upgrade", "head")
-    if code == 0:
-        logger.info("✅ Alembic 迁移完成")
-    else:
-        logger.warning(f"⚠️ Alembic 升级失败：{stderr.strip() or stdout.strip()}")
+    ini_path = _find_alembic_ini()
+    cmd = [
+        sys.executable,
+        "-m",
+        "alembic",
+        "-c",
+        str(ini_path),
+        *args,
+    ]
+    # 通过环境变量传入 URL，避免 alembic.ini 与 config.py 不同步
+    env_overrides = {
+        "DATABASE_URL": settings.ALEMBIC_DATABASE_URL,
+    }
+    import os
 
-
-async def _alembic_stamp_head() -> None:
-    """标记当前数据库 schema 为 head（首次启动 create_all 后使用）。"""
-    loop = asyncio.get_event_loop()
-    code, stdout, stderr = await loop.run_in_executor(
-        None, _run_alembic_sync, "stamp", "head"
+    proc = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        env={**os.environ, **env_overrides},
+        check=False,
     )
+    return proc.returncode, (proc.stderr or "") + (proc.stdout or "")
+
+
+async def _alembic_cmd(*args: str, success_msg: str) -> None:
+    """子进程方式跑 alembic。"""
+    code, output = await asyncio.to_thread(_run_alembic_subprocess, *args)
     if code == 0:
-        logger.info("✅ 已将数据库标记为 head 版本")
+        logger.info(success_msg)
     else:
-        logger.warning(f"⚠️ Alembic stamp 失败：{stderr.strip() or stdout.strip()}")
+        logger.warning(f"⚠️ Alembic {' '.join(args)} 失败：{output.strip()[:200]}")
 
 
 # ---------- 种子数据 ----------
@@ -132,49 +132,54 @@ async def create_initial_data() -> None:
             )
             session.add(admin)
             await session.commit()
+            # 首次启动时显著打印凭证，避免用户被"默认密码"误导
             logger.info(
-                f"✅ 默认管理员已创建: {settings.INITIAL_ADMIN_USERNAME} / {settings.INITIAL_ADMIN_PASSWORD}"
+                f"✅ 默认管理员已创建：{settings.INITIAL_ADMIN_USERNAME}"
+            )
+            logger.warning(
+                f"🔑 默认管理员密码：{settings.INITIAL_ADMIN_PASSWORD}"
+                "（生产环境请立即修改！）"
             )
 
 
 # ---------- 主入口 ----------
 async def init_db() -> None:
-    """启动时调用：根据数据库状态自动决定如何维护表结构。"""
-    auto_create = getattr(settings, "AUTO_CREATE_TABLES", True)
-    auto_migrate = getattr(settings, "AUTO_MIGRATE", True)
+    """启动时调用：根据数据库状态自动决定如何维护。
+
+    关键：完成后**主动释放**所有连接，否则 uvicorn 的 lifespan 永远不会
+    看到 yield 完成（uvicorn 一直返回 502，application 看起来 hang）。
+    """
+    auto_init = getattr(settings, "AUTO_INIT_DB", True)
     auto_seed = getattr(settings, "AUTO_SEED_DATA", True)
 
-    if not auto_create and not auto_migrate and not auto_seed:
+    if not auto_init and not auto_seed:
         logger.info("⏭️  数据库自动维护已全部关闭，跳过")
+        await engine.dispose()
         return
 
-    try:
-        is_first_run = not await has_alembic_version_table()
-    except Exception as exc:
-        logger.warning(f"⚠️ 无法检查 alembic 状态，降级为 create_all 模式: {exc}")
-        is_first_run = True
+    if auto_init:
+        try:
+            is_first_run = not await has_alembic_version_table()
+        except Exception as exc:
+            logger.warning(f"⚠️ 检查 alembic 状态失败，降级为首次：{exc}")
+            is_first_run = True
 
-    if is_first_run:
-        logger.info("📦 首次启动：自动建表 + stamp baseline")
-        if auto_create:
+        if is_first_run:
+            logger.info("📦 首次启动：create_all + alembic stamp head")
             try:
                 await create_tables()
             except Exception as exc:
-                logger.error(f"❌ create_all 失败: {exc}")
-        try:
-            await _alembic_stamp_head()
-        except Exception as exc:
-            logger.warning(f"⚠️ alembic stamp 失败（可忽略，不影响启动）: {exc}")
-    else:
-        logger.info("🔄 检测到已有 schema，执行迁移")
-        if auto_migrate:
-            try:
-                await _alembic_upgrade_head()
-            except Exception as exc:
-                logger.warning(f"⚠️ alembic upgrade 失败（可忽略，不影响启动）: {exc}")
+                logger.error(f"❌ create_all 失败：{exc}")
+            await _alembic_cmd("stamp", "head", success_msg="✅ 已 stamp head")
+        else:
+            logger.info("🔄 检测到 alembic_version，执行 upgrade head")
+            await _alembic_cmd("upgrade", "head", success_msg="✅ Alembic 迁移完成")
 
     if auto_seed:
         try:
             await create_initial_data()
         except Exception as exc:
-            logger.warning(f"⚠️ 种子数据写入失败: {exc}")
+            logger.warning(f"⚠️ 种子数据写入失败：{exc}")
+
+    # 释放所有连接——uvicorn lifespan 才会感知到 yield 完成
+    await engine.dispose()

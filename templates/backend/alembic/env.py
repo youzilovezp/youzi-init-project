@@ -7,10 +7,17 @@ from sqlalchemy import engine_from_config, pool
 
 from app.core.config import settings
 from app.db.base_class import Base
-from app.models import *  # noqa: F401,F403  触发模型注册
+
+# 显式导入所有模型，确保 Base.metadata 在 autogenerate 时能看到
+from app.models import User, Role, Menu  # noqa: F401  触发模型注册（autogenerate 依赖 Base.metadata）
+
+_ = (User, Role, Menu)  # 防止 Pyright 误报"unused import"
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# 关键：用 settings.ALEMBIC_SYNC_URL（psycopg2/PyMySQL 同步驱动），
+# 避免与异步 engine 共享连接时触发 greenlet 错误。
+# 同时让手动 alembic upgrade head 与 init_db.py 走同一条 URL，行为一致。
+config.set_main_option("sqlalchemy.url", settings.ALEMBIC_SYNC_URL)  # type: ignore[attr-defined]
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
