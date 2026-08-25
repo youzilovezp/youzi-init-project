@@ -34,7 +34,7 @@ Claude 会询问项目显示名（可选）和初始管理员密码（可选）�
 2. 调用 `scripts/init.py <name> --only admin`
 3. 渲染 `templates/backend/*` + `templates/frontend/*` + `templates/root/*`
 4. 复制到目标目录 `项目目录/`
-5. 提示启动：`cd <name> && make install && make start && make backend-dev && make frontend-dev`
+5. 提示启动：`cd <name> && make start && make backend-dev && make frontend-dev`（`make backend-dev` 内部会自动创建 venv + 装依赖）
 
 ## 启动后用户访问
 
@@ -42,7 +42,7 @@ Claude 会询问项目显示名（可选）和初始管理员密码（可选）�
 - 后端 API：http://localhost:8000
 - API 文档：http://localhost:8000/docs
 - 数据库 UI：http://localhost:8080
-- 默认账号：`admin` / 启动时控制台打印的随机密码
+- 默认账号：`admin` / `admin`（本地开发方便；**生产前必须用 `--admin-pass` 改强密码**）
 
 ## 日常用到的 Make 命令（生成项目里有 `make help`）
 
@@ -70,14 +70,14 @@ python backend/scripts/add_module.py order --title "订单管理"
 4. `frontend/src/layouts/BasicLayout.vue` 加菜单项
 5. 生成数据库迁移：`make db-migrate msg="add <name>" && make db-upgrade`
 
-带自定义字段（避免后续手动改 4 个文件）：
+带自定义字段（避免后续手动改 5 个文件）：
 
 ```bash
 python backend/scripts/add_module.py product --title "商品管理" \
     --fields "name:str,price:float:0,stock:int:0,status:str:active"
 ```
 
-支持类型：`str / text / int / float / bool / datetime`。详细文档看生成项目根目录的 `使用文档.md`。
+支持类型：`str / text / int / float / bool / datetime`。详细文档看生成项目根目录的 `使用手册.md`。
 
 ## 与其他命令的关系
 

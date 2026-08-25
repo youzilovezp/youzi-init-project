@@ -39,7 +39,7 @@ Claude 会询问项目显示名（可选）和初始管理员密码（可选）�
 - 后端 API：http://localhost:8000
 - API 文档：http://localhost:8000/docs
 - 数据库 UI：http://localhost:8080
-- 默认账号：`admin` / 启动时控制台打印的随机密码
+- 默认账号：`admin` / `admin`（本地开发方便；**生产前必须用 `--admin-pass` 改强密码**）
 
 ## 常用 Make 命令
 

@@ -22,11 +22,14 @@ repos:
 
   # Python：ruff 已通过 .gitignore 暗示在用，这里锁定 lint + format
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.9
+    rev: v0.8.6
     hooks:
       - id: ruff
         args: ["--fix"]
+        # 模板项目源码（不包含 venv/node_modules）
+        files: "^(scripts/|templates/)"
       - id: ruff-format
+        files: "^(scripts/|templates/)"
 
   # Markdown 文档：README / INSTALL / SKILL
   - repo: https://github.com/pre-commit/mirrors-prettier
