@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { useUserStore } from '@/stores/user'
@@ -21,6 +21,13 @@ const rules: FormRules = {
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
 }
 
+// 修复：已登录用户访问 /login 应自动跳走，否则会再次提交无效登录请求
+onMounted(() => {
+  if (userStore.isLogin) {
+    router.replace('/dashboard')
+  }
+})
+
 async function onSubmit() {
   if (!formRef.value) return
   await formRef.value.validate(async (valid) => {
@@ -35,7 +42,7 @@ async function onSubmit() {
       const raw = route.query.redirect as string | undefined
       const redirect =
         raw && raw.startsWith('/') && !raw.startsWith('//') ? raw : '/dashboard'
-      router.push(redirect)
+      router.replace(redirect)
     } finally {
       loading.value = false
     }

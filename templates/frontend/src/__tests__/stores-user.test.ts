@@ -1,8 +1,19 @@
 /**
  * stores/user — token 持久化 + logout 清空 验证。
+ *
+ * 必须 mock @/api/auth，否则 logout() 会真实请求后端导致测试 hang。
  */
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
+
+// mock 整个 auth API 模块——logout 等不再发真实请求
+vi.mock('@/api/auth', () => ({
+  login: vi.fn(),
+  getMe: vi.fn(),
+  logout: vi.fn().mockResolvedValue(undefined),
+}))
+
+// import 必须在 mock 之后
 import { useUserStore } from '@/stores/user'
 
 describe('user store', () => {

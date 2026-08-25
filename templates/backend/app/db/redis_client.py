@@ -22,18 +22,18 @@ class RedisClient:
     原因：启动期主动 connect() 即便在 catch 里 swallow 异常，
     redis.from_url 内部的 connection_pool 仍会持有 asyncio 引用，
     导致 lifespan 阶段不能正常 yield（uvicorn 持续返回 502）。
+
+    连接锁在模块导入时创建（loop 之前 asyncio.Lock() 也安全，因为 lock 不
+    在创建时绑定到 loop）。
     """
 
     def __init__(self) -> None:
         self._client: redis.Redis | None = None
-        self._connect_lock: asyncio.Lock | None = None  # 延迟到第一次 await 时创建
+        self._connect_lock: asyncio.Lock = asyncio.Lock()
 
     async def _ensure_client(self) -> redis.Redis:
         if self._client is not None:
             return self._client
-        # 首次调用时建锁——必须发生在事件循环内，所以放这里
-        if self._connect_lock is None:
-            self._connect_lock = asyncio.Lock()
         async with self._connect_lock:
             if self._client is not None:
                 return self._client

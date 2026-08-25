@@ -6,7 +6,8 @@ import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '')
+  // 只加载 VITE_* 前缀的环境变量（不读 CI 密钥等）
+  const env = loadEnv(mode, process.cwd(), 'VITE_')
   return {
     plugins: [
       vue(),

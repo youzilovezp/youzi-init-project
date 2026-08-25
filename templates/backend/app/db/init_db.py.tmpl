@@ -1,12 +1,17 @@
 """
 数据库初始化：表结构 + 种子数据。
 
-行为（单一开关 AUTO_INIT_DB）：
+行为（AUTO_INIT_DB / AUTO_SEED_DATA 两开关独立）：
 
-| AUTO_INIT_DB | 首次启动 (无 alembic_version 表) | 后续启动 |
-|---|---|---|
-| true          | metadata.create_all + alembic stamp head + 种子 | alembic upgrade head + 种子补全 |
-| false         | 不动 | 不动 |
+| AUTO_INIT_DB | AUTO_SEED_DATA | 首次启动 (无 alembic_version 表) | 后续启动 |
+|---|---|---|---|
+| true   | true   | create_all + admin + demo 种子 | alembic upgrade + 种子补全 |
+| true   | false  | create_all | alembic upgrade |
+| false  | true   | 跳过（表不存在，跳过种子） | 跳过 |
+| false  | false  | 跳过 | 跳过 |
+
+首次启动**不自动 stamp head**：避免后续 `make db-migrate msg="add xxx"` 生成空迁移。
+用户首次启动后需手动跑 `make db-migrate msg="init" && make db-upgrade` 建基线。
 
 任何步骤失败只记录警告，不阻塞启动。
 
@@ -23,8 +28,8 @@ from app.core.config import settings
 from app.core.security import hash_password
 from app.db.session import async_session, engine
 from app.models.base_class import Base  # noqa: F401  触发模型注册
-from app.models.user import User
 from app.models.role import Role
+from app.models.user import User
 
 
 # ---------- Async 表操作 ----------
@@ -158,8 +163,6 @@ async def create_initial_data() -> None:
     - admin / 随机密码（启动时控制台打印）
     - manager / alice / bob 仅 dev 环境创建（dev 默认密码 Demo@123）
     """
-    from app.models.user import User  # 避免循环
-
     async with async_session() as session:
         # ---------- 角色 ----------
         # 不指定 id，让 sequence 自增——避免与已有数据 PK 冲突
@@ -168,11 +171,17 @@ async def create_initial_data() -> None:
             Role(name="部门经理", code="manager", remark="demo 数据"),
             Role(name="普通员工", code="employee", remark="demo 数据"),
         ]
+        # 用 code 查角色（不是 id），避免与已有数据 PK 冲突
+        code_to_id: dict[str, int] = {}
         for role in seed_roles:
             stmt = select(Role).where(Role.code == role.code)
             existing = (await session.execute(stmt)).scalar_one_or_none()
             if existing is None:
                 session.add(role)
+                await session.flush()  # flush 让新角色拿到 id
+                code_to_id[role.code] = role.id
+            else:
+                code_to_id[role.code] = existing.id
         await session.commit()
 
         # ---------- 管理员 ----------
@@ -186,7 +195,7 @@ async def create_initial_data() -> None:
                 password_hash=hash_password(settings.INITIAL_ADMIN_PASSWORD),
                 is_active=True,
                 is_superuser=True,
-                role_id=1,
+                role_id=code_to_id["admin"],  # 用 code 查到的 id，避免硬编码
                 nickname="超级管理员",
             )
             session.add(admin)
@@ -207,7 +216,8 @@ async def create_initial_data() -> None:
                 result = await session.execute(stmt)
                 if result.scalar_one_or_none() is not None:
                     continue
-                role_id = {"manager": 2, "employee": 3}.get(role_code, 1)
+                # 用 code 查 role_id，而不是硬编码 2/3
+                role_id = code_to_id.get(role_code, code_to_id["admin"])
                 user = User(
                     username=username,
                     nickname=nickname,

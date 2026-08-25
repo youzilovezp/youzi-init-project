@@ -37,6 +37,10 @@ from app.middleware.logging import LoggingMiddleware
 async def lifespan(app: FastAPI):
     """应用生命周期：启动时初始化资源，关闭时释放。"""
     setup_logging()
+    # 生产安全检查：默认 admin/admin + 默认密码是**严重的生产隐患**。
+    # 这里强警告，让运维在生产部署前必须改。
+    if settings.APP_ENV == "prod":
+        _check_prod_secrets()
     await init_db()
     {% if enable_redis %}
     await redis_client.connect()
@@ -45,6 +49,20 @@ async def lifespan(app: FastAPI):
     {% if enable_redis %}
     await redis_client.close()
     {% endif %}
+
+
+def _check_prod_secrets() -> None:
+    """生产环境启动时的硬性安全检查：弱密码直接拒绝启动。"""
+    weak_passwords = {"admin", "password", "123456", "admin123", "changeme"}
+    if settings.INITIAL_ADMIN_PASSWORD in weak_passwords:
+        from loguru import logger
+        logger.error(
+            "🚨 生产环境检测到默认弱密码 INITIAL_ADMIN_PASSWORD={!r}\n"
+            "   必须用 --admin-pass 或环境变量指定强密码（≥ 16 位）\n"
+            "   启动中止：请修改 .env 或重新跑 init.py --admin-pass",
+            settings.INITIAL_ADMIN_PASSWORD,
+        )
+        raise SystemExit(1)
 
 
 def create_app() -> FastAPI:
@@ -86,7 +104,8 @@ def create_app() -> FastAPI:
         resp.headers.setdefault("X-Content-Type-Options", "nosniff")
         resp.headers.setdefault("X-Frame-Options", "DENY")
         resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-        if not settings.DEBUG:
+        # HSTS 仅在生产启用——开发用 http://localhost 时开启会让浏览器拒绝后续连接
+        if is_prod:
             resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
         return resp
 

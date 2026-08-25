@@ -107,7 +107,9 @@ class UserOut(UserBase):
 
 class LoginRequest(BaseModel):
     username: str = Field(min_length=3, max_length=50)
-    password: str
+    # 仅做 max_length 限制（避免 bcrypt O(n²) DoS）；min_length 由调用方按需校验
+    # 本地开发允许 "admin" 这种短密码（5 字符），生产应该用 --admin-pass 指定强密码
+    password: str = Field(max_length=128)
 
     @field_validator("username")
     @classmethod

@@ -70,7 +70,18 @@ function openCreate() {
 
 function openEdit(row: UserInfo) {
   dialogMode.value = 'edit'
-  Object.assign(form, { ...row, password: '' })
+  // 显式 pick 字段，避免 spread 把 is_superuser/avatar/created_at 也注入 form
+  // （那些字段不可编辑，注入会导致表单提交时多带参数）
+  Object.assign(form, {
+    id: row.id,
+    username: row.username,
+    nickname: row.nickname ?? '',
+    email: row.email ?? '',
+    phone: row.phone ?? '',
+    role_id: row.role_id,
+    is_active: row.is_active,
+    password: '',
+  })
   dialogVisible.value = true
 }
 
@@ -105,7 +116,16 @@ async function handleSubmit() {
 }
 
 async function handleDelete(row: UserInfo) {
-  await ElMessageBox.confirm(`确定删除用户「${row.username}」吗？`, '提示', { type: 'warning' })
+  // 前端二次校验：不能删除自己（防误操作）
+  if (row.id === userStore.userInfo?.id) {
+    ElMessage.error('不能删除自己')
+    return
+  }
+  // 前端提示：删除 superuser 是高危操作（后端也会校验最后一个 superuser）
+  const warning = row.is_superuser
+    ? `确定要删除超级管理员「${row.username}」吗？删除后系统将无法恢复。`
+    : `确定删除用户「${row.username}」吗？`
+  await ElMessageBox.confirm(warning, '⚠️ 危险操作', { type: 'warning' })
   await userApi.deleteUser(row.id)
   ElMessage.success('已删除')
   fetchData()

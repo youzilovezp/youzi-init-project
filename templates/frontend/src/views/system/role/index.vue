@@ -38,7 +38,13 @@ function openCreate() {
 
 function openEdit(row: Role) {
   dialogMode.value = 'edit'
-  Object.assign(form, row)
+  // 显式 pick 字段，避免 spread 把 created_at 也注入 form
+  Object.assign(form, {
+    id: row.id,
+    name: row.name,
+    code: row.code,
+    remark: row.remark ?? '',
+  })
   dialogVisible.value = true
 }
 

@@ -327,7 +327,8 @@ def main() -> int:
         )
     args.admin_user = DEFAULT_ADMIN_USER
     if args.admin_pass is None:
-        # 默认用 "admin"：开发脚手架场景下省事，生产务必用 --admin-pass 显式指定
+        # 默认 admin/admin：本地开发最友好；用户生产前**必须**用 `--admin-pass` 改
+        # 后端 lifespan + uvicorn 重启都会强警告，但用户明确选择不过度保护
         args.admin_pass = "admin"
 
     context = build_context(args)
@@ -399,6 +400,17 @@ def main() -> int:
     print("✅ 项目生成完成！")
     print(f"   默认账号：{args.admin_user} / {args.admin_pass}")
     print(f"   后端地址：http://localhost:{DEFAULT_BACKEND_PORT}")
+    # 安全提示：默认密码是 admin/admin，本地开发 OK，但生产前必须改
+    if args.admin_pass == "admin":
+        print()
+        print("  ⚠️  ⚠️  ⚠️  生产环境安全警告 ⚠️  ⚠️  ⚠️")
+        print("  当前默认密码 = 'admin'，仅供本地开发调试")
+        print("  生产部署前**必须**用以下方式改成强密码：")
+        print(
+            f"    1. 重新跑：python scripts/init.py {args.project_name} --admin-pass '<强密码>'"
+        )
+        print("    2. 或编辑 .env 文件的 INITIAL_ADMIN_PASSWORD")
+        print("    3. 后端会在 APP_ENV=prod 时**拒绝启动**（强密码检查）")
     print(f"   前端地址：http://localhost:{DEFAULT_FRONTEND_PORT}")
     if args.only == "admin":
         print()
