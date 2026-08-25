@@ -82,7 +82,10 @@ async def test_create_user_duplicate_username_rejected(
         # 第二次创建同名：应 40001 业务错误
         payload2 = {**payload, "email": "dup2@test.com"}
         resp2 = await client.post("/api/v1/users", headers=auth, json=payload2)
-        assert resp2.status_code == 200
+        # BusinessError → HTTP 400 + body.code=40001
+        assert (
+            resp2.status_code == 400
+        ), f"应返 400 业务错，实际 {resp2.status_code}: {resp2.text}"
         assert resp2.json()["code"] == 40001
         # 清理
         from sqlalchemy import select
@@ -110,7 +113,10 @@ async def test_cannot_delete_last_superuser(
 
     # 尝试删除自己（也是唯一的 superuser）→ 拒绝
     resp = await client.delete(f"/api/v1/users/{admin_user.id}", headers=auth)
-    assert resp.status_code == 200
+    # BusinessError → HTTP 400 + body.code=40000/40001
+    assert (
+        resp.status_code == 400
+    ), f"应返 400 业务错，实际 {resp.status_code}: {resp.text}"
     data = resp.json()
     # 不能删除自己 OR 不能删除最后一个 superuser → 任一拒绝即正确
     assert data["code"] in (40000, 40001), f"应拒绝，实际：{data}"

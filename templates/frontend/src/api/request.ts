@@ -11,14 +11,16 @@ import type { ApiResponse } from './types'
 import { TOKEN_KEY } from '@/config'
 
 // 让 axios 的 get/post/put/delete 都接受 silent 字段
+// 同时给本项目用的 RequestOptions 加上中文 JSDoc 提示
 declare module 'axios' {
   export interface AxiosRequestConfig {
+    /** 静默模式：不显示全局错误提示 */
     silent?: boolean
   }
 }
 
 export interface RequestOptions extends AxiosRequestConfig {
-  /** 静默模式：不显示全局错误提示 */
+  /** 静默模式：不显示全局错误提示（与 AxiosRequestConfig.silent 同义，保留以兼容老调用） */
   silent?: boolean
 }
 

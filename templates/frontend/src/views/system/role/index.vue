@@ -50,18 +50,21 @@ function openEdit(row: Role) {
 
 async function handleSubmit() {
   if (!formRef.value) return
-  await formRef.value.validate(async (valid: boolean) => {
-    if (!valid) return
-    if (dialogMode.value === 'create') {
-      await roleApi.createRole({ name: form.name, code: form.code, remark: form.remark })
-      ElMessage.success('创建成功')
-    } else {
-      await roleApi.updateRole(form.id, { name: form.name, code: form.code, remark: form.remark })
-      ElMessage.success('更新成功')
-    }
-    dialogVisible.value = false
-    fetchData()
-  })
+  // Element Plus validate() 返回 Promise<boolean>——用 await + 非 async 回调
+  // 之前 await formRef.value.validate(async (valid) => {...}) 是错的：
+  // validate 回调签名是 sync (valid: boolean) => void，async 函数返回 void 不会
+  // 变成 awaitable，会让 fetchData 在 valid=false 时也执行，请求仍发出
+  const valid = await formRef.value.validate().catch(() => false)
+  if (!valid) return
+  if (dialogMode.value === 'create') {
+    await roleApi.createRole({ name: form.name, code: form.code, remark: form.remark })
+    ElMessage.success('创建成功')
+  } else {
+    await roleApi.updateRole(form.id, { name: form.name, code: form.code, remark: form.remark })
+    ElMessage.success('更新成功')
+  }
+  dialogVisible.value = false
+  fetchData()
 }
 
 async function handleDelete(row: Role) {

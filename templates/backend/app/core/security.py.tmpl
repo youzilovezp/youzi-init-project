@@ -91,11 +91,12 @@ async def is_token_blacklisted(jti: str) -> bool:
         return False
 {% else %}
 async def blacklist_token(token: str) -> bool:
-    """无 Redis：返回 jti 让 logout 端点能报告，但实际不撤销。生产必须 ENABLE_REDIS=true。"""
-    try:
-        return bool(decode_token(token).get("jti", ""))
-    except ValueError:
-        return False
+    """无 Redis：没有黑名单存储，实际无法撤销 token。
+
+    返回 False——让 logout 端点如实提示"撤销未生效"，而不是谎报已撤销。
+    生产必须启用 Redis（--with-redis + REDIS_HOST）。
+    """
+    return False
 
 
 async def is_token_blacklisted(jti: str) -> bool:

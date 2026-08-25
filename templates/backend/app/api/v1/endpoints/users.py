@@ -6,7 +6,12 @@ from app.api.deps import SessionDep, SuperUser
 from app.core.exceptions import BusinessError, NotFoundError
 from app.crud.user import user_crud
 from app.schemas.common import PageResponse, ResponseModel
-from app.schemas.user import UserCreate, UserOut, UserPasswordUpdate, UserUpdate
+from app.schemas.user import (
+    AdminPasswordUpdate,
+    UserCreate,
+    UserOut,
+    UserUpdate,
+)
 
 router = APIRouter()
 
@@ -52,15 +57,13 @@ async def get_user(db: SessionDep, _user: SuperUser, user_id: int):
 @router.put("/{user_id}", response_model=ResponseModel[UserOut], summary="更新用户")
 async def update_user(
     db: SessionDep,
-    user: SuperUser,
+    _user: SuperUser,
     user_id: int,
     payload: UserUpdate,
 ):
     target = await user_crud.get(db, user_id)
     if target is None:
         raise NotFoundError("用户不存在")
-    if target.id == user.id and not user.is_superuser:
-        raise BusinessError(message="不能修改自己的账号")
     updated = await user_crud.update(db, target, payload)
     return ResponseModel(data=UserOut.model_validate(updated))
 
@@ -101,8 +104,13 @@ async def admin_change_password(
     db: SessionDep,
     _user: SuperUser,
     user_id: int,
-    payload: UserPasswordUpdate,
+    payload: AdminPasswordUpdate,
 ):
+    """管理员直接重置用户密码（不需要旧密码）。
+
+    用 AdminPasswordUpdate 而非 UserPasswordUpdate——后者强制要求 old_password，
+    实际管理员改密场景下没有"旧密码"语义。
+    """
     target = await user_crud.get(db, user_id)
     if target is None:
         raise NotFoundError("用户不存在")

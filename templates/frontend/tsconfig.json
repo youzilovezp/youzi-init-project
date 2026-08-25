@@ -8,7 +8,8 @@
     "paths": {
       "@/*": ["src/*"]
     },
-    "types": ["element-plus/global", "vite/client", "vitest/globals"]
+    "types": ["element-plus/global", "vite/client", "vitest/globals"],
+    "skipLibCheck": true
   },
   "include": [
     "src/**/*.ts",

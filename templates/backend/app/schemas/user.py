@@ -81,7 +81,28 @@ class UserUpdate(BaseModel):
 
 
 class UserPasswordUpdate(BaseModel):
+    """用户自己改密：必须提供旧密码。"""
+
     old_password: str
+    new_password: str = Field(min_length=6, max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def _norm_pwd(cls, v: str) -> str:
+        for ch in v:
+            if ord(ch) < 0x20 or ord(ch) == 0x7F:
+                raise ValueError("新密码不能包含控制字符")
+        return v
+
+
+class AdminPasswordUpdate(BaseModel):
+    """管理员直接改密（不校验旧密码）。
+
+    之前 admin_change_password 共用 UserPasswordUpdate，强制要求 old_password，
+    实际管理员改密场景下根本没有"旧密码"语义——admin 是帮用户重置密码。
+    强行传占位 old_password 既容易写错又是历史包袱。独立 schema 更清晰。
+    """
+
     new_password: str = Field(min_length=6, max_length=128)
 
     @field_validator("new_password")
@@ -107,9 +128,11 @@ class UserOut(UserBase):
 
 class LoginRequest(BaseModel):
     username: str = Field(min_length=3, max_length=50)
-    # 仅做 max_length 限制（避免 bcrypt O(n²) DoS）；min_length 由调用方按需校验
-    # 本地开发允许 "admin" 这种短密码（5 字符），生产应该用 --admin-pass 指定强密码
-    password: str = Field(max_length=128)
+    # 防止 bcrypt O(n²) DoS：min_length=4 足够拒掉 1-3 字符的爆破尝试。
+    # 默认 admin 密码 = "admin"（5 字符），用 4 是兼容现有默认；生产必须
+    # 用 --admin-pass 指定 ≥ 16 字符强密码，且 _check_prod_secrets() 会
+    # 强校验弱密码（main.py._check_prod_secrets 拒绝常见弱密码）。
+    password: str = Field(min_length=4, max_length=128)
 
     @field_validator("username")
     @classmethod

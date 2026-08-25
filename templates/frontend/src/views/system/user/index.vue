@@ -5,7 +5,9 @@ import * as userApi from '@/api/user'
 import * as roleApi from '@/api/role'
 import type { UserInfo } from '@/api/types'
 import type { Role } from '@/api/role'
+import { useUserStore } from '@/stores/user'
 
+const userStore = useUserStore()
 const loading = ref(false)
 const tableData = ref<UserInfo[]>([])
 const total = ref(0)
@@ -87,32 +89,35 @@ function openEdit(row: UserInfo) {
 
 async function handleSubmit() {
   if (!formRef.value) return
-  await formRef.value.validate(async (valid: boolean) => {
-    if (!valid) return
-    if (dialogMode.value === 'create') {
-      await userApi.createUser({
-        username: form.username,
-        password: form.password,
-        nickname: form.nickname,
-        email: form.email,
-        phone: form.phone,
-        role_id: form.role_id,
-        is_active: form.is_active,
-      })
-      ElMessage.success('创建成功')
-    } else {
-      await userApi.updateUser(form.id, {
-        nickname: form.nickname,
-        email: form.email,
-        phone: form.phone,
-        role_id: form.role_id,
-        is_active: form.is_active,
-      })
-      ElMessage.success('更新成功')
-    }
-    dialogVisible.value = false
-    fetchData()
-  })
+  // Element Plus validate() 返回 Promise<boolean>——用 await + 非 async 回调
+  // 之前 await formRef.value.validate(async (valid) => {...}) 是错的：
+  // validate 回调签名是 sync (valid: boolean) => void，async 函数返回 void 不会
+  // 变成 awaitable，会让 fetchData 在 valid=false 时也执行，请求仍发出
+  const valid = await formRef.value.validate().catch(() => false)
+  if (!valid) return
+  if (dialogMode.value === 'create') {
+    await userApi.createUser({
+      username: form.username,
+      password: form.password,
+      nickname: form.nickname,
+      email: form.email,
+      phone: form.phone,
+      role_id: form.role_id,
+      is_active: form.is_active,
+    })
+    ElMessage.success('创建成功')
+  } else {
+    await userApi.updateUser(form.id, {
+      nickname: form.nickname,
+      email: form.email,
+      phone: form.phone,
+      role_id: form.role_id,
+      is_active: form.is_active,
+    })
+    ElMessage.success('更新成功')
+  }
+  dialogVisible.value = false
+  fetchData()
 }
 
 async function handleDelete(row: UserInfo) {

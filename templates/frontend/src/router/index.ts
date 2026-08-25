@@ -1,5 +1,11 @@
 // 路由配置
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import {
+  createRouter,
+  createWebHistory,
+  type RouteLocationNormalized,
+  type RouteRecordRaw,
+  type NavigationGuardNext,
+} from 'vue-router'
 import { useUserStore } from '@/stores/user'
 
 const routes: RouteRecordRaw[] = [
@@ -48,7 +54,7 @@ const router = createRouter({
 })
 
 // ---------- 全局守卫 ----------
-router.beforeEach(async (to, _from, next) => {
+router.beforeEach(async (to: RouteLocationNormalized, _from: RouteLocationNormalized, next: NavigationGuardNext) => {
   const userStore = useUserStore()
 
   // 设置页面标题

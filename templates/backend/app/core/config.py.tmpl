@@ -66,21 +66,38 @@ class Settings(BaseSettings):
     WORKERS: int = 4  # K8s / gunicorn 生产 worker 数
 
     # ---------- 数据库 ----------
-    # 默认 `localhost`（宿主机跑 `make backend-dev` 的常见场景：uvicorn 连
-    # 本机 docker compose 暴露的端口）。如在 docker 容器内运行，改为 `postgres`。
+    # DB_TYPE: sqlite（默认，零配置，文件存 backend/data/app.db）| postgresql（生产）
+    # 非技术用户用默认 sqlite 即可；生产部署改 DB_TYPE=postgresql 并填下面 POSTGRES_* 字段
+    DB_TYPE: Literal["sqlite", "postgresql"] = "sqlite"
+    SQLITE_PATH: str = "data/app.db"  # 相对 backend/ 目录
+
+    # PostgreSQL 配置（仅 DB_TYPE=postgresql 时生效）
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = {{ postgres_port }}
     POSTGRES_USER: str = "{{ project_name }}"
     POSTGRES_PASSWORD: str = "{{ db_password }}"
     POSTGRES_DB: str = "{{ project_name }}"
+
     DB_ECHO: bool = False
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
-    DB_POOL_PRE_PING: bool = True    # 防长连接被 PG/NAT 静默断开
+    DB_POOL_PRE_PING: bool = True    # 防长连接被 PG/NAT 静默断开（SQLite 下无效但不报错）
     DB_POOL_RECYCLE: int = 3600      # 1 小时回收
 
     @property
     def DATABASE_URL(self) -> str:
+        """运行时用——根据 DB_TYPE 返回对应 driver URL。"""
+        if self.DB_TYPE == "sqlite":
+            import os
+            from pathlib import Path
+            # 保证父目录存在
+            db_path = Path(self.SQLITE_PATH)
+            if not db_path.is_absolute():
+                # 相对路径：相对 backend/ 解析
+                db_path = Path(os.getcwd()) / db_path
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+            return f"sqlite+aiosqlite:///{db_path}"
+        # postgresql：异步用 asyncpg
         from urllib.parse import quote
         return (
             f"postgresql+asyncpg://{self.POSTGRES_USER}:{quote(self.POSTGRES_PASSWORD, safe='')}"
@@ -89,19 +106,31 @@ class Settings(BaseSettings):
 
     @property
     def ALEMBIC_DATABASE_URL(self) -> str:
-        """alembic 走同步路径，psycopg2。"""
+        """alembic 走同步路径。sqlite→sqlite，postgresql→psycopg2。"""
+        if self.DB_TYPE == "sqlite":
+            import os
+            from pathlib import Path
+            db_path = Path(self.SQLITE_PATH)
+            if not db_path.is_absolute():
+                db_path = Path(os.getcwd()) / db_path
+            return f"sqlite:///{db_path}"
         from urllib.parse import quote
         return (
             f"postgresql+psycopg2://{self.POSTGRES_USER}:{quote(self.POSTGRES_PASSWORD, safe='')}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
 {% if enable_redis %}
-    # ---------- Redis ----------
-    # 默认 localhost（宿主机 dev 场景）；docker 容器内运行时改为 `postgres`
-    REDIS_HOST: str = "localhost"
+    # ---------- Redis（可选，不开则用内存替代）----------
+    # 留空 REDIS_HOST = 不启用 Redis（限流/黑名单用进程内内存，单机 dev 够用）
+    # 填了就用 Redis（生产多 worker / 进程重启不丢限流计数）
+    REDIS_HOST: str = ""  # 留空禁用 Redis；填 localhost / redis 启用
     REDIS_PORT: int = {{ redis_port }}
     REDIS_DB: int = 0
     REDIS_PASSWORD: str | None = None
+
+    @property
+    def REDIS_ENABLED(self) -> bool:
+        return bool(self.REDIS_HOST.strip())
 
     @property
     def REDIS_URL(self) -> str:

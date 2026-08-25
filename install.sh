@@ -423,12 +423,22 @@ do_status() {
     if command -v python3 >/dev/null 2>&1; then
         echo "    ✅ python3: $(python3 --version 2>&1)"
     else
-        echo "    ⚠️  python3: 未安装"
+        echo "    ⚠️  python3: 未安装（必须）"
+    fi
+    if command -v git >/dev/null 2>&1; then
+        echo "    ✅ git: $(git --version 2>&1)"
+    else
+        echo "    ℹ️  git: 未安装（--init-git 会跳过；git clone 则必须）"
     fi
     if python3 -c "import jinja2" 2>/dev/null; then
         echo "    ✅ jinja2: $(python3 -c 'import jinja2; print(jinja2.__version__)')"
     else
-        echo "    ⚠️  jinja2: 未安装（仅 scripts/init.py 需要，运行 pip install jinja2 后可生成项目）"
+        echo "    ⚠️  jinja2: 未安装（scripts/init.py 需要；pip install jinja2）"
+    fi
+    if command -v docker >/dev/null 2>&1; then
+        echo "    ✅ docker: $(docker --version 2>&1)（可选——默认 SQLite 模式不需要）"
+    else
+        echo "    ℹ️  docker: 未安装（默认不需要；只有 DB_TYPE=postgresql 才需要）"
     fi
 }
 

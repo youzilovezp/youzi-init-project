@@ -4,225 +4,181 @@
 
 # 🍊 youzi-init-project · 一站式项目初始化工具
 
-**`/yz-init-admin <name>` → 完整前后端 + 中间件 + 数据库自动维护 → 开箱即跑**
+**给非技术背景的宝宝：`一条命令` → 完整可跑的管理系统**
 
 ![License](https://img.shields.io/badge/License-MIT-orange.svg)
 ![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)
 ![Claude Code](https://img.shields.io/badge/Claude%20Code-Skill-blueviolet.svg)
 
-[📖 使用手册](使用手册.md) · [📦 安装说明](安装说明.md) · [⚙️ SKILL](templates/skills/admin/SKILL.md)
+[📖 使用手册](使用手册.md) · [📦 安装说明](安装说明.md) · [⚙️ SKILL 源码](templates/skills/admin/SKILL.md)
 
 </div>
 
 ---
 
-## ⚡ 它是什么
+## 🚀 30 秒上手
 
-给非技术背景或新入职工程师的 **Claude Code 脚手架 skill**。**一条命令**生成完整可跑的管理系统,自带数据库表结构自动维护、admin 随机密码、API 文档、adminer 数据库 UI。
-
-```
+```bash
+# 1. 在 Claude Code 里输入（项目目录可随便换）
 /yz-init-admin my-app
-       │
-       ▼
-🛠️ 渲染 → 模板引擎(Jinja2)+ 真实随机密码注入 .env
-       │
-       ▼
-📦 输出 → backend/(FastAPI) + frontend/(Vue 3) + docker-compose + 文档
-       │
-       ▼
-🚀 启动 → make install → make start → make backend-dev / make frontend-dev
+
+# 2. 按提示回答（可全回车跳过）→ my-app/ 生成
+
+# 3. 启动（默认 SQLite，零配置、免装 Docker）
+cd my-app && make install && make backend-dev   # 终端 A
+make frontend-dev                                # 终端 B
 ```
 
-> 💡 Claude Code 不支持 `:` 作为命令字符,所以三个独立 skill 用 `-` 分隔:`yz-init-admin` / `yz-init-server` / `yz-init-ui`
+打开 **http://localhost:3000**，账号 `admin` / `admin`，登录成功 ✅
+
+> 💡 默认密码 `admin/admin` 方便本地开发。**生产前用 `python scripts/init.py my-app --admin-pass '<强密码>'` 重设。**
 
 ---
 
-## ✨ 核心能力
+## 🤔 这是什么？
 
-|     | 能力                     | 说明                                                            |
-| --- | ------------------------ | --------------------------------------------------------------- |
-| 🛠️  | **3 种粒度**             | `admin`(完整前后端)/ `server`(纯后端)/ `ui`(纯前端)             |
-| ⚡  | **FastAPI + 异步**       | SQLAlchemy 2.0 async + Pydantic v2 + JWT                        |
-| 🎨  | **Vue 3 + Element Plus** | TypeScript + Vite + Pinia + 自动按需导入                        |
-| 🐳  | **中间件一键启动**       | PostgreSQL 16 + Redis 7 + adminer(看数据用)                     |
-| 🔐  | **安全默认**             | bcrypt 密码 + JWT 黑名单 + CORS + TrustedHost + 慢速限流        |
-| 🗄️  | **数据库自动维护**       | 首次 `create_all` → 后续 `alembic upgrade head` 全自动          |
-| 🌱  | **种子数据**             | admin + 3 个 demo 用户(密码启动时控制台打印)                    |
-| 📦  | **一键加业务模块**       | `add_module.py` 生成 model/schema/crud/router/view/api 6 个文件 |
-| 📚  | **自带完整文档**         | 每个生成项目含架构/技术栈/配置/开发/API 5 份文档                |
-
----
-
-## 🚀 三步开始
-
-### ① 安装
-
-```bash
-git clone <repo> && cd youzi-init-project
-./install.sh install
-```
-
-按提示确认后,会创建三个 skill 到 `~/.claude/skills/`。
-
-### ② 在 Claude Code 中使用
-
-```bash
-/yz-init-admin my-app      # 完整前后端 + 中间件
-/yz-init-server my-api     # 后端 + 中间件
-/yz-init-ui my-web         # 仅前端
-```
-
-Claude 会询问项目显示名和初始管理员密码(都可回车跳过),确认后自动生成 `my-app/`。
-
-### ③ 启动新项目
-
-```bash
-cd my-app
-make install       # 首次:安装后端 + 前端依赖
-make start         # 启动 PostgreSQL + Redis + adminer
-make backend-dev   # 终端 A:启动后端(uvicorn --reload)
-make frontend-dev  # 终端 B:启动前端(vite dev)
-```
-
-启动后可访问:
-
-| 服务         | 地址                       | 说明             |
-| ------------ | -------------------------- | ---------------- |
-| 🖥️ 前端      | http://localhost:3000      | Vue 3 SPA        |
-| 🔌 后端 API  | http://localhost:8000      | FastAPI          |
-| 📖 API 文档  | http://localhost:8000/docs | Swagger UI       |
-| 🗄️ 数据库 UI | http://localhost:8080      | adminer          |
-| 🔑 默认账号  | `admin` / **随机密码**     | 启动时控制台打印 |
-
----
-
-## 📋 三个模式对比
-
-| 模式         | 适合                 | 输出                        | 启动命令                                 |
-| ------------ | -------------------- | --------------------------- | ---------------------------------------- |
-| **`admin`**  | 🆕 新建一套完整系统  | 后端 + 前端 + 中间件 + 文档 | `make backend-dev` + `make frontend-dev` |
-| **`server`** | 🔧 新增/替换后端 API | 后端 + 中间件 + 文档        | `make backend-dev`                       |
-| **`ui`**     | 🎨 新增/替换前端     | 纯前端 + 文档               | `pnpm dev`                               |
-
----
-
-## 🔧 技术栈
-
-### 后端
-
-|     | 技术           | 版本       |
-| --- | -------------- | ---------- |
-| 🐍  | Python         | 3.11+      |
-| ⚡  | FastAPI        | 0.110+     |
-| 🗄️  | SQLAlchemy     | 2.0 async  |
-| 📦  | Pydantic       | v2         |
-| 🔐  | PyJWT + bcrypt | 内置       |
-| 🔄  | Alembic        | 1.13+      |
-| 📝  | loguru         | 结构化日志 |
-
-### 前端
-
-|     | 技术         | 版本 |
-| --- | ------------ | ---- |
-| 🖼️  | Vue          | 3.4  |
-| 📘  | TypeScript   | 5.4  |
-| ⚡  | Vite         | 5.1  |
-| 🎨  | Element Plus | 2.6  |
-| 📦  | Pinia        | 2.1  |
-| 🧪  | Vitest       | 1.5  |
-
-### 中间件
-
-|     | 服务       | 镜像                 |
-| --- | ---------- | -------------------- |
-| 🐘  | PostgreSQL | postgres:16.4-alpine |
-| 🔴  | Redis      | redis:7.2-alpine     |
-| 🗄️  | adminer    | adminer:4.8.1        |
-
----
-
-## 📁 仓库结构
+**一个 Claude Code 的脚手架 skill**：你说一个名字，Claude 自动把完整的管理系统代码、配置、文档一次性生成到本地。
 
 ```
-youzi-init-project/
-├── 📦 安装说明.md           # 安装指南(系统要求 + 三种安装方式 + 卸载)
-├── 📖 使用手册.md           # 使用手册(上手 + 三模式 + 加业务模块 + FAQ + 排错)
-├── 👋 README.md             # 你正在看(项目总览)
-├── 🔧 install.sh            # 一键安装脚本(install/uninstall/update/status)
-├── 📂 scripts/              # 模板渲染工具
-│   ├── init.py              ⭐ admin/server/ui 三模式渲染
-│   └── add_module.py        ⭐ 给生成项目加业务模块(6 个文件)
-├── 🎨 templates/            # 所有模板
-│   ├── backend/             后端(FastAPI + SQLAlchemy + JWT + Alembic)
-│   ├── frontend/            前端(Vue 3 + TS + Vite + Element Plus)
-│   ├── root/                根级(docker-compose + Makefile + .gitignore + 文档)
-│   └── skills/              三个 SKILL.md(给 Claude 看的触发入口)
-└── 🖼️ assets/youzi-logo.svg # 项目 logo
+你输入：/yz-init-admin my-app
+        │
+        ▼
+Claude 做：
+  📋 询问显示名 + 初始密码（都可跳过）
+  🛠️  用 Jinja2 渲染所有模板（FastAPI + Vue 3 + SQLAlchemy…）
+  🔐  生成 64 位随机 SECRET_KEY 写入 .env
+  🌱  首次启动自动建表 + 种子账号
+  📦  生成 backend/ + frontend/ + Makefile + 文档
+        │
+        ▼
+你拿到：
+  my-app/
+  ├── backend/            # FastAPI 后端（data/app.db 是 SQLite 数据库）
+  │   ├── app/            # models / api / crud / core
+  │   └── alembic/        # 数据库迁移
+  ├── frontend/           # Vue 3 SPA
+  ├── docker-compose.yml  # PostgreSQL/Redis（仅生产模式用）
+  └── Makefile            # make backend-dev / frontend-dev / db-migrate
 ```
 
 ---
 
-## 🧩 加业务模块
+## 🎯 三种模式，按需选
+
+| 模式 | 适合场景 | 输出 | 启动命令 |
+|---|---|---|---|
+| **`admin`** | 🆕 新建一套完整系统 | 后端 + 前端 + 文档 | `make backend-dev` + `make frontend-dev` |
+| **`server`** | 🔧 接已有前端，加后端 | 后端 + 文档 | `make backend-dev` |
+| **`ui`** | 🎨 接已有后端，加前端 | 纯前端 + 文档 | `pnpm dev` |
+
+> 📌 三种模式都用 `-` 分隔（不用 `:` 是因为 Claude Code 不支持冒号作命令字符）。
+
+---
+
+## ✨ 生成的项目长这样
+
+### 🔧 后端（FastAPI + SQLAlchemy 2.0 异步）
+
+| 模块 | 路径 | 作用 |
+|---|---|---|
+| API 路由 | `app/api/v1/endpoints/` | 认证、用户、角色 CRUD |
+| 依赖注入 | `app/api/deps.py` | SessionDep / CurrentUser / SuperUser |
+| 配置 | `app/core/config.py` | pydantic-settings 从 .env 加载 |
+| 安全 | `app/core/security.py` | JWT（带 jti）+ bcrypt |
+| 异常 | `app/core/exceptions.py` | 统一响应码 + 全局处理 |
+| 数据库 | `app/db/init_db.py` | 启动自动建表 + 种子数据 |
+| 迁移 | `alembic/` | 后续 `make db-migrate MSG=...` 增量更新 |
+
+### 🎨 前端（Vue 3 + TypeScript + Vite）
+
+| 模块 | 路径 | 作用 |
+|---|---|---|
+| 路由守卫 | `src/router/index.ts` | 未登录跳 `/login`，无权限跳首页 |
+| 请求拦截 | `src/api/request.ts` | 401 弹窗 + token 自动注入 + 错误统一处理 |
+| 用户状态 | `src/stores/user.ts` | token 持久化 + login/logout |
+| 布局 | `src/layouts/BasicLayout.vue` | 侧边栏 + 顶栏 + el-menu |
+| 页面 | `src/views/system/{user,role}/` | 用户/角色 CRUD |
+
+### 🗄️ 数据库
+
+| 场景 | 方案 |
+|---|---|
+| 默认 | **SQLite 文件**（`backend/data/app.db`），零配置免装任何东西 |
+| 生产 | `.env` 改 `DB_TYPE=postgresql`；`make start` **优先复用本机已运行的 PG/Redis**，缺的才用 Docker 起 |
+
+---
+
+## 🧩 加业务模块（可选）
 
 ```bash
 cd my-app
 python backend/scripts/add_module.py order --title "订单管理" \
-    --fields "name:str,price:float:0,stock:int:0,status:str:active"
+  --fields "name:str,price:float:0,stock:int:0,status:str:active"
 ```
 
-自动生成 **6 个文件** + 提示 **5 处手动注册**:
+自动生成 **6 个文件**（后端 model/schema/crud/router + 前端 API/页面），需要手动注册 **5 处**：
 
-| 文件                                    | 位置            |
-| --------------------------------------- | --------------- |
-| 📄 `app/models/order.py`                | ORM 模型        |
-| 📄 `app/schemas/order.py`               | Pydantic schema |
-| 📄 `app/crud/order.py`                  | CRUD 类         |
-| 📄 `app/api/v1/endpoints/order.py`      | FastAPI router  |
-| 📄 `frontend/src/api/order.ts`          | 前端 TS 接口    |
-| 📄 `frontend/src/views/order/index.vue` | 前端 CRUD 页面  |
+1. `backend/app/models/__init__.py` 加 import
+2. `backend/app/api/v1/router.py` 加路由
+3. `frontend/src/router/index.ts` 加路由记录
+4. `frontend/src/layouts/BasicLayout.vue` 加菜单项
+5. `make db-migrate MSG="add order" && make db-upgrade`
 
-支持字段类型:`str` / `text` / `int` / `float` / `bool` / `datetime`
+详细：[使用手册 § 5](使用手册.md#5-加业务模块-add_modulepy)
 
 ---
 
 ## 📚 文档导航
 
-| 📄 文档                                                                 | 👤 适合谁                              | ⏱️ 时间 |
-| ----------------------------------------------------------------------- | -------------------------------------- | ------- |
-| [📖 使用手册.md](使用手册.md)                                           | 🟢 任何人 · 4 大块(上手/进阶/FAQ/排错) | 15 分钟 |
-| [📦 安装说明.md](安装说明.md)                                           | 🟢 第一次安装 · 装/卸/更新             | 5 分钟  |
-| [⚙️ templates/skills/admin/SKILL.md](templates/skills/admin/SKILL.md)   | 🔴 Claude 触发入口(不是给人读)         | 5 分钟  |
-| [⚙️ templates/skills/server/SKILL.md](templates/skills/server/SKILL.md) | 🔴 server 模式 Skill                   | 5 分钟  |
-| [⚙️ templates/skills/ui/SKILL.md](templates/skills/ui/SKILL.md)         | 🔴 ui 模式 Skill                       | 5 分钟  |
-
-**怎么选**:
-
-- 🆕 还没装 → [📦 安装说明.md](安装说明.md)
-- 🚀 装好想用 → [📖 使用手册.md § 1-3](使用手册.md)
-- 🧩 想加业务模块 → [📖 使用手册.md § 4](使用手册.md)
-- ❓ 踩坑 → [📖 使用手册.md § 6 排错](使用手册.md)
+| 你想了解什么 | 看这里 |
+|---|---|
+| 🆕 第一次装脚手架 | [📦 安装说明.md](安装说明.md) |
+| 🚀 装好后怎么用 / 怎么加模块 | [📖 使用手册.md](使用手册.md) |
+| 🛠️ 模板里某个文件改坏了 | [templates/backend/](templates/backend/) 源码 |
+| 🤖 给 Claude 看怎么触发 | [templates/skills/admin/SKILL.md](templates/skills/admin/SKILL.md) |
+| ❌ 出错了 | [使用手册 § 6 排错](使用手册.md#6-faq--故障排查) |
 
 ---
 
-## 🛠️ 先决条件
+## 🔧 技术栈一览
 
-| 工具            | 用途                    | 安装                                                 |
-| --------------- | ----------------------- | ---------------------------------------------------- |
-| 🐍 Python 3.11+ | 运行 `init.py`          | 系统包管理器                                         |
-| 📦 jinja2       | 模板渲染(`init.py` 用)  | `pip install jinja2`(项目根自带 `install.sh` 会提示) |
-| 🐳 Docker       | 启动 PostgreSQL + Redis | [docker.com](https://docker.com)                     |
-| 🤖 Claude Code  | 调用 skill              | [claude.ai/code](https://claude.ai/code)             |
+### 后端
+| | 技术 | 版本 |
+|---|---|---|
+| 🐍 | Python | 3.11+ |
+| ⚡ | FastAPI | 0.110+ |
+| 🗄️ | SQLAlchemy | 2.0 async |
+| 💾 | SQLite（默认）/ PostgreSQL（生产） | — |
+| 📦 | Pydantic | v2 |
+| 🔐 | PyJWT + bcrypt | 内置 |
+| 🔄 | Alembic | 1.13+ |
+
+### 前端
+| | 技术 | 版本 |
+|---|---|---|
+| 🖼️ | Vue | 3.4 |
+| 📘 | TypeScript | 5.4 |
+| ⚡ | Vite | 5.1 |
+| 🎨 | Element Plus | 2.6 |
+| 📦 | Pinia | 2.1 |
+
+---
+
+## 🤝 贡献 / 自定义模板
+
+模板就是仓库里 `templates/` 下的所有内容——符号链接安装下改了**即时生效**。
+
+```bash
+cd youzi-init-project
+# 直接改 templates/backend/app/main.py.tmpl
+vim templates/backend/app/main.py.tmpl
+# 下次 /yz-init-admin 生成项目时自动应用
+```
+
+更多：[使用手册 § 4.3](使用手册.md#43-改模板)
 
 ---
 
 ## 📄 License
 
 MIT
-
----
-
-<div align="center">
-
-**Made with 🔥 by Claude Code** —— 让 1 个命令 = 1 个完整可跑的管理系统 🍊
-
-</div>

@@ -107,9 +107,11 @@ async def test_me_with_valid_token_returns_user(
 async def test_logout_blacklists_token(
     client: AsyncClient, admin_credentials: dict[str, str]
 ):
-    """logout 后旧 token 失效 → /me 返 401
+    """logout 行为按模式断言：
 
-    这是 P0 测试：JWT 黑名单是核心安全机制，必须有回归守护。
+    - Redis 模式：token 真正进黑名单，旧 token 访问 /me 返 401（核心安全机制）
+    - 无 Redis 模式：没有黑名单存储，logout 必须如实提示"撤销未生效"，
+      绝不能谎报"已撤销"（用户以为安全退出了实际没有——这是安全问题）
     """
     login_resp = await client.post(
         "/api/v1/auth/login",
@@ -121,11 +123,39 @@ async def test_logout_blacklists_token(
     # logout 撤销 token
     logout_resp = await client.post("/api/v1/auth/logout", headers=auth)
     assert logout_resp.status_code == 200
+    msg = logout_resp.json()["message"]
 
-    # 旧 token 不应再能访问 /me
-    me_resp = await client.get("/api/v1/auth/me", headers=auth)
-    assert me_resp.status_code == 401
-    assert me_resp.json()["code"] == 40100
+    redis_enabled = False
+    try:
+        from app.core.config import settings
+
+        redis_enabled = bool(getattr(settings, "REDIS_ENABLED", False))
+    except Exception:
+        redis_enabled = False
+
+    if redis_enabled:
+        # Redis 配置了但要确认真的可达（不可达时黑名单 fail-open，测不出撤销语义）
+        try:
+            from app.db.redis_client import redis_client
+
+            await redis_client.ping()
+            redis_reachable = True
+        except Exception:
+            redis_reachable = False
+        if not redis_reachable:
+            pytest.skip(
+                "REDIS_HOST 已配置但 Redis 不可达（黑名单 fail-open，无法测撤销）"
+            )
+        # 旧 token 不应再能访问 /me
+        me_resp = await client.get("/api/v1/auth/me", headers=auth)
+        assert me_resp.status_code == 401
+        assert me_resp.json()["code"] == 40100
+        assert "已撤销" in msg
+    else:
+        # 无 Redis：token 仍有效（文档已声明的限制），但提示必须诚实
+        me_resp = await client.get("/api/v1/auth/me", headers=auth)
+        assert me_resp.status_code == 200
+        assert "未生效" in msg, f"无 Redis 模式 logout 不能谎报已撤销：{msg}"
 
 
 @pytest.mark.asyncio

@@ -118,20 +118,19 @@ def _diagnose_alembic_error(output: str) -> str:
     ):
         return (
             "❌ 数据库连接失败。请检查：\n"
-            "   1. 中间件是否启动？`make start`\n"
-            "   2. .env 中 POSTGRES_PASSWORD / POSTGRES_USER / POSTGRES_HOST 是否与 docker-compose.yml 一致\n"
+            "   1. 中间件是否启动？`make start`（会优先复用本机已运行的 PG/Redis）\n"
+            "   2. .env 中 POSTGRES_PASSWORD / POSTGRES_USER / POSTGRES_HOST 是否与实际数据库一致\n"
             "   3. POSTGRES_PORT 是否被占用"
         )
     if "database" in text and "does not exist" in text:
         return (
-            "❌ 数据库不存在。请确认：\n"
-            "   1. docker-compose.yml 里 POSTGRES_DB 已创建\n"
-            "   2. 或运行 `make db-shell` 进入 psql 检查 \\l"
+            "❌ 数据库不存在。请在 PostgreSQL 里创建 .env 中 POSTGRES_DB 指定的库，\n"
+            "   或 `make start` 用 Docker 起一套（会自动建库）"
         )
     if "version_num" in text or "conflicts with" in text:
         return (
             "❌ alembic 版本冲突——可能是手动改过数据库。\n"
-            "   解决：`make db-reset` 重建数据库（⚠️ 会清空所有数据）"
+            "   解决：备份数据后删除数据库重建（SQLite：删 backend/data/app.db；PG：删库后 make start）"
         )
     return f"❌ Alembic 失败：{output.strip()[:300]}"
 

@@ -73,13 +73,19 @@ services:
     image: redis:7.2-alpine
     container_name: {{ project_name }}-redis
     env_file: {% if only == 'admin' %}./backend/.env{% else %}.env{% endif %}
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}", "--appendonly", "yes"]
+    # 显式 entrypoint=[sh, -c] 让容器内 sh 展开 $REDIS_PASSWORD（env_file 提供）
+    # $$ 防 compose-time 插值（env_file 的值在 compose-time 不可见）。
+    # 注意：直接用 command: "redis-server ..." 字符串形式会被新版 compose 智能
+    # 解析为 exec 形式（按空格 split），$$ 不会被 sh 展开。
+    entrypoint: ["sh", "-c"]
+    command:
+      - 'redis-server --requirepass "$$REDIS_PASSWORD" --appendonly yes'
     ports:
       - "${REDIS_PORT:-{{ redis_port }}}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
       interval: 10s
       timeout: 3s
       retries: 5

@@ -1,180 +1,190 @@
 # {{ project_title }} 常用命令
-# 设计原则：只保留非技术用户会用到的命令
+# 设计原则：默认零配置（SQLite + 无 Redis，免装 Docker）；生产加 --with-redis + DB_TYPE=postgresql
+# 中间件策略：本机已有 PostgreSQL/Redis 直接复用，缺的才用 Docker 起
 {% if only == 'admin' %}
 # =============== admin mode ===============
 ENV_FILE := backend/.env
-.PHONY: help start stop restart logs clean backend-dev frontend-dev install db-shell db-reset reset-admin backup restore db-migrate db-upgrade db-downgrade test test-cov
+# venv 里的 python（make install / backend-dev 创建）；没有则退回 python3
+VENV_PY := $(wildcard backend/.venv/bin/python)
+BPY := $(if $(VENV_PY),backend/.venv/bin/python,python3)
+.PHONY: help backend-dev frontend-dev install db-migrate db-upgrade db-downgrade reset-admin admin-pass test start stop
+
+# 从 .env 读中间件端口（没写用默认值）
+PG_PORT := $(shell sed -n 's/^POSTGRES_PORT=//p' $(ENV_FILE) 2>/dev/null | head -1)
+REDIS_PORT := $(shell sed -n 's/^REDIS_PORT=//p' $(ENV_FILE) 2>/dev/null | head -1)
+PG_PORT := $(if $(PG_PORT),$(PG_PORT),5432)
+REDIS_PORT := $(if $(REDIS_PORT),$(REDIS_PORT),6379)
+
+# 端口探测（python3 socket，跨平台无依赖）：0 = 有人监听（可复用）
+port_listening = python3 -c "import socket,sys; s=socket.socket(); s.settimeout(0.5); sys.exit(0 if s.connect_ex(('127.0.0.1', $(1))) == 0 else 1)"
 
 help:           ## 显示帮助
-	@echo "可用命令："
+	@echo "可用命令（默认 SQLite 零配置，无需 Docker）："
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
-start:          ## 启动所有中间件
-	@if [ ! -f $(ENV_FILE) ]; then \
-		cp $(ENV_FILE).example $(ENV_FILE); \
-		echo "📝 已生成 $(ENV_FILE)，请先填 POSTGRES_PASSWORD / REDIS_PASSWORD / SECRET_KEY（生产用 openssl rand -hex 32 生成）"; \
-	fi
-	docker compose --env-file $(ENV_FILE) up -d
+install:        ## 安装依赖（后端 venv + 前端 node_modules）
+	cd backend && (test -d .venv || uv venv .venv 2>/dev/null || python3 -m venv .venv) && \
+	. .venv/bin/activate && \
+	(uv pip install -e ".[dev]" 2>/dev/null || pip install -e ".[dev]")
+	cd frontend && (pnpm install 2>/dev/null || npm install)
 
-stop:           ## 停止中间件
-	docker compose down
-
-restart:        ## 重启中间件
-	docker compose restart
-
-logs:           ## 查看中间件日志
-	docker compose logs -f
-
-install:        ## 安装依赖（后端 + 前端）
-	cd backend && uv pip install -e ".[dev]" || pip install -e ".[dev]"
-	cd frontend && pnpm install || npm install
-
-frontend-test:  ## 前端 vitest（覆盖 login redirect / store / router）
-	cd frontend && pnpm test
-
-backend-test:   ## 后端 pytest
-	cd backend && pytest -q
-
-backend-dev:    ## 启动后端（自动建表 + 种子）
-	cd backend && (test -d .venv || uv venv .venv) && \
-	(test -d .venv && . .venv/bin/activate && uv pip install -e ".[dev]" || pip install -e ".[dev]") && \
+backend-dev:    ## 启动后端（默认 SQLite，免装中间件）
+	cd backend && (test -d .venv || uv venv .venv 2>/dev/null || python3 -m venv .venv) && \
 	(test -f .env || cp .env.example .env) && \
+	. .venv/bin/activate && \
+	(uv pip install -e ".[dev]" 2>/dev/null || pip install -e ".[dev]") && \
 	uvicorn app.main:app --reload --host 0.0.0.0 --port {{ backend_port }}
 
 frontend-dev:   ## 启动前端
-	cd frontend && pnpm dev --port {{ frontend_port }}
+	cd frontend && (pnpm dev --port {{ frontend_port }} 2>/dev/null || npm run dev -- --port {{ frontend_port }})
 
-db-shell:       ## 进入 postgres 命令行
-	docker compose exec -T postgres env PGPASSWORD=$$POSTGRES_PASSWORD psql -U {{ project_name }} -d {{ project_name }}
-
-# 生成迁移文件：make db-migrate msg="add order"
-db-migrate:     ## 生成新迁移（msg="描述"）
+# 生成迁移文件：make db-migrate MSG="add order"
+db-migrate:     ## 生成新迁移（MSG="描述"）
 	@if [ -z "$(MSG)" ]; then \
 		echo "❌ 必须传 MSG: make db-migrate MSG=\"add order\""; \
 		exit 1; \
 	fi
-	cd backend && alembic revision --autogenerate -m "$(MSG)"
+	cd backend && $(if $(VENV_PY),.venv/bin/python,python3) -m alembic revision --autogenerate -m "$(MSG)"
 
 # 应用所有迁移
 db-upgrade:     ## 应用所有迁移到最新
-	cd backend && alembic upgrade head
+	cd backend && $(if $(VENV_PY),.venv/bin/python,python3) -m alembic upgrade head
 
 # 回滚一步（⚠️ 危险：会 drop 上一 migration 创建的对象）
 db-downgrade:   ## 回滚最近一步迁移
 	@echo "⚠️ db-downgrade 会撤销上一 migration 的所有变更（drop table / column）"
-	@echo "   仅用于本地调试；生产请用备份恢复（make restore FILE=...）"
+	@echo "   仅用于本地调试；生产请用备份恢复"
 	@read -p "确认回滚? [y/N] " ans && [ "$$ans" = "y" ] || (echo "❌ 已取消"; exit 1)
-	cd backend && alembic downgrade -1
+	cd backend && $(if $(VENV_PY),.venv/bin/python,python3) -m alembic downgrade -1
 
-db-reset:       ## ⚠️ 重置数据库（删除所有数据）
-	docker compose --env-file $(ENV_FILE) down -v && docker compose --env-file $(ENV_FILE) up -d
-	@echo "✅ 数据库已重置，重启后端让其重建"
-
-reset-admin:    ## 重置 admin 密码（随机生成并打印）
-	cd backend && python scripts/reset_admin.py
+reset-admin:    ## 重置 admin 密码（不传则重置为 admin）
+	cd backend && $(if $(VENV_PY),.venv/bin/python,python3) scripts/reset_admin.py
 
 # 指定密码：make admin-pass NEW=YourPass!2025
 admin-pass:     ## 重置 admin 密码为 NEW=... 指定值
-	cd backend && python scripts/reset_admin.py --password "$(NEW)"
-
-backup:         ## 备份数据库到 ./backups/
-	@mkdir -p backups
-	docker compose exec -T postgres env PGPASSWORD=$$POSTGRES_PASSWORD pg_dump -U {{ project_name }} > backups/backup_$$(date +%Y%m%d_%H%M%S).sql
-	@echo "✅ 备份完成：backups/"
-
-# 从备份恢复：make restore FILE=backups/backup_xxx.sql
-restore:        ## 从备份恢复（FILE=backups/backup_xxx.sql）
-	docker compose exec -T postgres env PGPASSWORD=$$POSTGRES_PASSWORD psql -U {{ project_name }} -d {{ project_name }} < $(FILE)
-
-clean:          ## ⚠️ 清理所有数据
-	docker compose down -v
+	cd backend && $(if $(VENV_PY),.venv/bin/python,python3) scripts/reset_admin.py --password "$(NEW)"
 
 test:           ## 跑后端 + 前端测试
-	cd backend && pytest -q
-	cd frontend && pnpm test
+	cd backend && $(BPY) -m pytest -q
+	cd frontend && (pnpm test 2>/dev/null || npm test)
 
-test-cov:       ## 生成覆盖率报告
-	cd backend && pytest --cov=app --cov-report=html --cov-fail-under=70
-	cd frontend && pnpm test --coverage
+# 中间件启停：本机已有 PostgreSQL/Redis 直接复用；缺的才用 Docker 起。
+# 默认 SQLite 模式什么都不用启动。
+start:          ## 启动中间件（优先复用本机已运行的 PG/Redis）
+	@if [ ! -f .docker-needs ]; then \
+		echo "ℹ️  当前配置走 SQLite + 内存模式，无需任何中间件。"; \
+		echo "   要用 PG/Redis：改 $(ENV_FILE) 里 DB_TYPE=postgresql（Redis 再填 REDIS_HOST），详见 docs/配置说明.md"; \
+		exit 0; \
+	fi; \
+	services=""; \
+	if $(call port_listening,$(PG_PORT)); then \
+		echo "♻️  复用本机已运行的 PostgreSQL（127.0.0.1:$(PG_PORT)）"; \
+	else \
+		services="$$services postgres"; \
+	fi; \
+	if grep -q '^REDIS_HOST=.' $(ENV_FILE) 2>/dev/null; then \
+		if $(call port_listening,$(REDIS_PORT)); then \
+			echo "♻️  复用本机已运行的 Redis（127.0.0.1:$(REDIS_PORT)）"; \
+		else \
+			services="$$services redis"; \
+		fi; \
+	fi; \
+	if [ -n "$$services" ]; then \
+		echo "🐳 Docker 启动缺少的中间件:$$services"; \
+		docker compose --env-file $(ENV_FILE) up -d $$services; \
+	else \
+		echo "✅ 中间件全部就绪（均为本机已有服务，未启动任何容器）"; \
+	fi; \
+	echo "   数据库 UI adminer（可选）：docker compose --env-file $(ENV_FILE) up -d adminer → http://localhost:8080"
+
+stop:           ## 停止 Docker 中间件容器（本机服务不受影响）
+	@docker compose down 2>/dev/null || echo "ℹ️  没有需要停止的容器"
 {% else %}
 # =============== server mode ===============
 ENV_FILE := .env
-.PHONY: help start stop restart logs clean install backend-dev db-shell db-reset reset-admin backup restore db-migrate db-upgrade db-downgrade test
+VENV_PY := $(wildcard .venv/bin/python)
+BPY := $(if $(VENV_PY),.venv/bin/python,python3)
+.PHONY: help backend-dev install db-migrate db-upgrade db-downgrade reset-admin admin-pass test start stop
+
+PG_PORT := $(shell sed -n 's/^POSTGRES_PORT=//p' $(ENV_FILE) 2>/dev/null | head -1)
+REDIS_PORT := $(shell sed -n 's/^REDIS_PORT=//p' $(ENV_FILE) 2>/dev/null | head -1)
+PG_PORT := $(if $(PG_PORT),$(PG_PORT),5432)
+REDIS_PORT := $(if $(REDIS_PORT),$(REDIS_PORT),6379)
+
+port_listening = python3 -c "import socket,sys; s=socket.socket(); s.settimeout(0.5); sys.exit(0 if s.connect_ex(('127.0.0.1', $(1))) == 0 else 1)"
 
 help:           ## 显示帮助
-	@echo "可用命令："
+	@echo "可用命令（默认 SQLite 零配置，无需 Docker）："
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
-start:          ## 启动中间件
-	@if [ ! -f $(ENV_FILE) ]; then \
-		cp $(ENV_FILE).example $(ENV_FILE); \
-		echo "📝 已生成 $(ENV_FILE)，请先填 POSTGRES_PASSWORD / REDIS_PASSWORD / SECRET_KEY（生产用 openssl rand -hex 32 生成）"; \
-	fi
-	docker compose --env-file $(ENV_FILE) up -d
+install:        ## 安装后端依赖（创建 venv）
+	(test -d .venv || uv venv .venv 2>/dev/null || python3 -m venv .venv) && \
+	. .venv/bin/activate && \
+	(uv pip install -e ".[dev]" 2>/dev/null || pip install -e ".[dev]")
 
-stop:           ## 停止中间件
-	docker compose down
-
-restart:        ## 重启中间件
-	docker compose restart
-
-logs:           ## 查看中间件日志
-	docker compose logs -f
-
-install:        ## 安装后端依赖
-	uv pip install -e ".[dev]" || pip install -e ".[dev]"
-
-backend-dev:    ## 启动后端
-	(test -d .venv || uv venv .venv) && \
-	(test -d .venv && . .venv/bin/activate && uv pip install -e ".[dev]" || pip install -e ".[dev]") && \
+backend-dev:    ## 启动后端（默认 SQLite，免装中间件）
+	(test -d .venv || uv venv .venv 2>/dev/null || python3 -m venv .venv) && \
 	(test -f .env || cp .env.example .env) && \
+	. .venv/bin/activate && \
+	(uv pip install -e ".[dev]" 2>/dev/null || pip install -e ".[dev]") && \
 	uvicorn app.main:app --reload --host 0.0.0.0 --port {{ backend_port }}
 
-db-shell:       ## 进入 postgres 命令行
-	docker compose exec -T postgres env PGPASSWORD=$$POSTGRES_PASSWORD psql -U {{ project_name }} -d {{ project_name }}
-
-# 生成迁移文件：make db-migrate msg="add order"
-db-migrate:     ## 生成新迁移（msg="描述"）
+# 生成迁移文件：make db-migrate MSG="add order"
+db-migrate:     ## 生成新迁移（MSG="描述"）
 	@if [ -z "$(MSG)" ]; then \
 		echo "❌ 必须传 MSG: make db-migrate MSG=\"add order\""; \
 		exit 1; \
 	fi
-	cd backend && alembic revision --autogenerate -m "$(MSG)"
+	$(BPY) -m alembic revision --autogenerate -m "$(MSG)"
 
 # 应用所有迁移
 db-upgrade:     ## 应用所有迁移到最新
-	cd backend && alembic upgrade head
+	$(BPY) -m alembic upgrade head
 
 # 回滚一步（⚠️ 危险：会 drop 上一 migration 创建的对象）
 db-downgrade:   ## 回滚最近一步迁移
 	@echo "⚠️ db-downgrade 会撤销上一 migration 的所有变更（drop table / column）"
-	@echo "   仅用于本地调试；生产请用备份恢复（make restore FILE=...）"
+	@echo "   仅用于本地调试；生产请用备份恢复"
 	@read -p "确认回滚? [y/N] " ans && [ "$$ans" = "y" ] || (echo "❌ 已取消"; exit 1)
-	cd backend && alembic downgrade -1
+	$(BPY) -m alembic downgrade -1
 
-db-reset:       ## ⚠️ 重置数据库（删除所有数据）
-	docker compose --env-file $(ENV_FILE) down -v && docker compose --env-file $(ENV_FILE) up -d
-	@echo "✅ 数据库已重置，重启后端让其重建"
-
-reset-admin:    ## 重置 admin 密码（随机生成并打印）
-	python scripts/reset_admin.py
+reset-admin:    ## 重置 admin 密码（不传则重置为 admin）
+	$(BPY) scripts/reset_admin.py
 
 # 指定密码：make admin-pass NEW=YourPass!2025
 admin-pass:     ## 重置 admin 密码为 NEW=... 指定值
-	python scripts/reset_admin.py --password "$(NEW)"
-
-backup:         ## 备份数据库到 ./backups/
-	@mkdir -p backups
-	docker compose exec -T postgres env PGPASSWORD=$$POSTGRES_PASSWORD pg_dump -U {{ project_name }} > backups/backup_$$(date +%Y%m%d_%H%M%S).sql
-	@echo "✅ 备份完成：backups/"
-
-# 从备份恢复：make restore FILE=backups/backup_xxx.sql
-restore:        ## 从备份恢复（FILE=backups/backup_xxx.sql）
-	docker compose exec -T postgres env PGPASSWORD=$$POSTGRES_PASSWORD psql -U {{ project_name }} -d {{ project_name }} < $(FILE)
-
-clean:          ## ⚠️ 清理所有数据
-	docker compose down -v
+	$(BPY) scripts/reset_admin.py --password "$(NEW)"
 
 test:           ## 跑后端测试
-	pytest -q
+	$(BPY) -m pytest -q
+
+# 中间件启停：本机已有 PostgreSQL/Redis 直接复用；缺的才用 Docker 起。
+start:          ## 启动中间件（优先复用本机已运行的 PG/Redis）
+	@if [ ! -f .docker-needs ]; then \
+		echo "ℹ️  当前配置走 SQLite + 内存模式，无需任何中间件。"; \
+		exit 0; \
+	fi; \
+	services=""; \
+	if $(call port_listening,$(PG_PORT)); then \
+		echo "♻️  复用本机已运行的 PostgreSQL（127.0.0.1:$(PG_PORT)）"; \
+	else \
+		services="$$services postgres"; \
+	fi; \
+	if grep -q '^REDIS_HOST=.' $(ENV_FILE) 2>/dev/null; then \
+		if $(call port_listening,$(REDIS_PORT)); then \
+			echo "♻️  复用本机已运行的 Redis（127.0.0.1:$(REDIS_PORT)）"; \
+		else \
+			services="$$services redis"; \
+		fi; \
+	fi; \
+	if [ -n "$$services" ]; then \
+		echo "🐳 Docker 启动缺少的中间件:$$services"; \
+		docker compose --env-file $(ENV_FILE) up -d $$services; \
+	else \
+		echo "✅ 中间件全部就绪（均为本机已有服务，未启动任何容器）"; \
+	fi; \
+	echo "   数据库 UI adminer（可选）：docker compose --env-file $(ENV_FILE) up -d adminer → http://localhost:8080"
+
+stop:           ## 停止 Docker 中间件容器（本机服务不受影响）
+	@docker compose down 2>/dev/null || echo "ℹ️  没有 Docker 或没有需要停止的容器"
 {% endif %}

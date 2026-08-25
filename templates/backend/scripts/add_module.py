@@ -283,14 +283,20 @@ def _form_default_obj(fields: list[dict]) -> str:
 
 
 def _form_validation_rules(fields: list[dict]) -> str:
-    """生成 Element Plus 的 FormRules（只校验 name 这种必填文本）。"""
+    """生成 Element Plus 的 FormRules（只校验 str 必填字段）。
+
+    Element Plus 的 FormRule 必须用 field 名作为 key（对应 el-form-item 的 prop），
+    不能有 name 字段。type-check 期望 Partial<Record<string, FormItemRule>>。
+    """
     rules = []
     for f in fields:
         if f["required"] and f["type"] == "str":
             rules.append(
-                f"    {{ name: '{f['name']}', required: true, message: '请输入{_label(f['name'])}', trigger: 'blur' }}"
+                f"    {f['name']}: [{{ required: true, message: '请输入{_label(f['name'])}', trigger: 'blur' }}]"
             )
-    return "[\n" + ",\n".join(rules) + "\n  ]"
+    if not rules:
+        return "{}"
+    return "{\n" + ",\n".join(rules) + "\n  }"
 
 
 def _table_columns(fields: list[dict]) -> str:
@@ -523,19 +529,22 @@ function openEdit(row: __CLS__) <<%OPEN%>>
 
 async function handleSubmit() <<%OPEN%>>
   if (!formRef.value) return
-  await formRef.value.validate(async (valid) <<%OPEN%>>
-    if (!valid) return
-    const payload: __CLS__CreatePayload = <<%ITEM_FIELDS%>>
-    if (dialogMode.value === 'create') <<%OPEN%>>
-      await __MODULE__Api.createItem(payload)
-      ElMessage.success('创建成功')
-    <<%CLOSE%>> else <<%OPEN%>>
-      await __MODULE__Api.updateItem(form.id, payload)
-      ElMessage.success('更新成功')
-    <<%CLOSE%>>
-    dialogVisible.value = false
-    fetchData()
-  <<%CLOSE%>>)
+  // Element Plus validate() 返回 Promise<boolean>——用 await + 非 async 回调
+  // 之前 await formRef.value.validate(async (valid) => {...}) 是错的：
+  // validate 回调签名是 sync (valid: boolean) => void，async 函数返回 void 不会
+  // 变成 awaitable，会让 fetchData 在 valid=false 时也执行，删除/更新仍发出请求
+  const valid = await formRef.value.validate().catch(() => false)
+  if (!valid) return
+  const payload: __CLS__CreatePayload = <<%ITEM_FIELDS%>>
+  if (dialogMode.value === 'create') <<%OPEN%>>
+    await __MODULE__Api.createItem(payload)
+    ElMessage.success('创建成功')
+  <<%CLOSE%>> else <<%OPEN%>>
+    await __MODULE__Api.updateItem(form.id, payload)
+    ElMessage.success('更新成功')
+  <<%CLOSE%>>
+  dialogVisible.value = false
+  fetchData()
 <<%CLOSE%>>
 
 async function handleDelete(row: __CLS__) <<%OPEN%>>
@@ -634,12 +643,18 @@ def add_module(
     module_name: str,
     title: str | None = None,
     fields_spec: str | None = None,
-    backend_dir: Path = Path("backend"),
-    frontend_dir: Path = Path("frontend"),
+    backend_dir: Path | None = None,
+    frontend_dir: Path | None = None,
 ) -> int:
     if not re.match(r"^[a-z][a-z0-9_]*$", module_name):
         print(f"❌ 模块名格式错误：{module_name}（只允许小写字母、数字、下划线）")
         return 1
+
+    # 目录自动探测：admin 模式 app 在 backend/，server 模式 app 在根目录
+    if backend_dir is None:
+        backend_dir = Path(".") if Path("app/models").exists() else Path("backend")
+    if frontend_dir is None:
+        frontend_dir = Path("frontend")
 
     try:
         fields = _parse_fields(fields_spec)
@@ -701,7 +716,14 @@ def add_module(
             CLS=cls,
             ITEM_ID="{item_id}",
         ),
-        frontend_dir / "src" / "api" / f"{module_name}.ts": _render_view(
+    }
+
+    # server 模式（纯后端项目）没有前端，跳过前端文件生成
+    has_frontend = (frontend_dir / "package.json").exists() or (
+        frontend_dir / "src"
+    ).exists()
+    if has_frontend:
+        files[frontend_dir / "src" / "api" / f"{module_name}.ts"] = _render_view(
             API_TEMPLATE,
             placeholders=placeholders,
             TITLE=title,
@@ -710,17 +732,20 @@ def add_module(
             TS_INTERFACE_FIELDS=ts_iface_str,
             TS_PAYLOAD_FIELDS=ts_payload_str,
             TS_UPDATE_FIELDS=ts_update_str,
-        ),
-        frontend_dir / "src" / "views" / module_name / "index.vue": _render_view(
-            VIEW_TEMPLATE,
-            placeholders=placeholders,
-            TITLE=title,
-            MODULE=module_name,
-            CLS=cls,
-            TABLE_COLUMNS=table_columns_str,
-            FORM_ITEMS=form_items_str,
-        ),
-    }
+        )
+        files[frontend_dir / "src" / "views" / module_name / "index.vue"] = (
+            _render_view(
+                VIEW_TEMPLATE,
+                placeholders=placeholders,
+                TITLE=title,
+                MODULE=module_name,
+                CLS=cls,
+                TABLE_COLUMNS=table_columns_str,
+                FORM_ITEMS=form_items_str,
+            )
+        )
+    else:
+        print(f"ℹ️  未检测到前端工程（{frontend_dir}），只生成后端 4 个文件")
 
     print(f"🚀 添加模块：{module_name}（{title}）")
     if fields_spec:
@@ -752,27 +777,33 @@ def add_module(
 
     print()
     print("📋 接下来你需要手动做（脚本不做，避免误改你的代码）：")
-    print("   1. 编辑 backend/app/models/__init__.py，新增：")
+    print(f"   1. 编辑 {backend_dir}/app/models/__init__.py，新增：")
     print(f"      from app.models.{module_name} import {model_cls}")
     print()
-    print("   2. 编辑 backend/app/api/v1/router.py，新增：")
+    print(f"   2. 编辑 {backend_dir}/app/api/v1/router.py，新增：")
     print(
         f"      from app.api.v1.endpoints.{module_name} import router as {module_name}_router"
     )
     print(
         f"      api_router.include_router({module_name}_router, prefix='/{module_name}', tags=['{title}'])"
     )
-    print()
-    print("   3. 编辑 frontend/src/router/index.ts，添加路由：")
-    print(
-        f"      {{ path: '{module_name}', name: '{model_cls}', component: () => import('@/views/{module_name}/index.vue'), meta: {{ title: '{title}', icon: 'Document' }} }}"
-    )
-    print()
-    print("   4. 编辑 frontend/src/layouts/BasicLayout.vue，添加菜单项。")
-    print()
-    print(
-        f'   5. 生成数据库迁移：`make db-migrate msg="add {module_name}"` 然后 `make db-upgrade`'
-    )
+    if has_frontend:
+        print()
+        print("   3. 编辑 frontend/src/router/index.ts，添加路由：")
+        print(
+            f"      {{ path: '{module_name}', name: '{model_cls}', component: () => import('@/views/{module_name}/index.vue'), meta: {{ title: '{title}', icon: 'Document' }} }}"
+        )
+        print()
+        print("   4. 编辑 frontend/src/layouts/BasicLayout.vue，添加菜单项。")
+        print()
+        print(
+            f'   5. 生成数据库迁移：`make db-migrate MSG="add {module_name}"` 然后 `make db-upgrade`'
+        )
+    else:
+        print()
+        print(
+            f'   3. 生成数据库迁移：`make db-migrate MSG="add {module_name}"` 然后 `make db-upgrade`'
+        )
     return 0
 
 
@@ -796,10 +827,14 @@ def main() -> int:
         ),
     )
     parser.add_argument(
-        "--backend-dir", default="backend", help="后端目录（默认 backend）"
+        "--backend-dir",
+        default=None,
+        help="后端目录（默认自动探测：根目录有 app/ 用 .，否则 backend）",
     )
     parser.add_argument(
-        "--frontend-dir", default="frontend", help="前端目录（默认 frontend）"
+        "--frontend-dir",
+        default=None,
+        help="前端目录（默认 frontend；没有前端工程时自动跳过前端文件）",
     )
     parser.add_argument(
         "--force",
@@ -813,8 +848,8 @@ def main() -> int:
         module_name=args.name,
         title=args.title,
         fields_spec=args.fields,
-        backend_dir=Path(args.backend_dir),
-        frontend_dir=Path(args.frontend_dir),
+        backend_dir=Path(args.backend_dir) if args.backend_dir else None,
+        frontend_dir=Path(args.frontend_dir) if args.frontend_dir else None,
     )
 
 

@@ -28,9 +28,12 @@ from app.db.session import async_session
 {% if enable_redis %}
 from app.db.redis_client import redis_client
 {% endif %}
-from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
 from app.middleware.logging import LoggingMiddleware
+
+try:
+    from slowapi.errors import RateLimitExceeded
+except ImportError:  # 默认（无 Redis）模式未安装 slowapi——限流走 no-op
+    RateLimitExceeded = None  # type: ignore[assignment,misc]
 
 
 @asynccontextmanager
@@ -91,9 +94,10 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "Accept"],
     )
-    # slowapi 限流：必须把 limiter 挂到 app.state，装饰器才能找到
+    # slowapi 限流：必须把 limiter 挂到 app.state，装饰器(@limiter.limit)才能找到
+    # 注意：不要同时 add SlowAPIMiddleware——会和 @limiter.limit 装饰器**双重计数**，
+    # 5/minute 实际只允许 ~3 次（中间件 +1、装饰器 +1）。只用装饰器 + 全局异常处理。
     app.state.limiter = limiter
-    app.add_middleware(SlowAPIMiddleware)
     # 最后注册 = 最外层，捕获所有请求/响应
     app.add_middleware(LoggingMiddleware)
 
@@ -112,12 +116,14 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
 
     # 限流触发后：429 + 友好消息（不暴露内部堆栈）
-    @app.exception_handler(RateLimitExceeded)
-    async def _rate_limit_handler(_: Request, exc: RateLimitExceeded) -> JSONResponse:
-        return JSONResponse(
-            status_code=429,
-            content={"code": 42900, "message": "请求过于频繁，请稍后重试"},
-        )
+    # 仅在 slowapi 可用时注册（无 Redis 模式 limiter 是 no-op，不会触发该异常）
+    if RateLimitExceeded is not None:
+        @app.exception_handler(RateLimitExceeded)
+        async def _rate_limit_handler(_: Request, exc: RateLimitExceeded) -> JSONResponse:
+            return JSONResponse(
+                status_code=429,
+                content={"code": 42900, "message": "请求过于频繁，请稍后重试"},
+            )
 
     app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 
@@ -134,11 +140,11 @@ def create_app() -> FastAPI:
         try:
             async with async_session() as s:
                 await s.execute(sa.text("SELECT 1"))
-            details["postgres"] = "ok"
+            details["database"] = "ok"
         except Exception:  # noqa: BLE001
             ok = False
             # 不外泄错误类名 / 详情,服务端打日志即可
-            details["postgres"] = "down"
+            details["database"] = "down"
         {% if enable_redis %}
         try:
             await redis_client.ping()
