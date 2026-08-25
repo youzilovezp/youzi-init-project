@@ -110,9 +110,19 @@ def _diagnose_alembic_error(output: str) -> str:
       4. 其他
     """
     text = output.lower()
+    if "password authentication failed" in text:
+        return (
+            "❌ 数据库密码认证失败。两种常见原因：\n"
+            "   A. 复用本机 PostgreSQL：该实例还没有 .env 里的用户/密码/库。\n"
+            "      解决：在本机 PG 里创建（或改 .env 指向 Docker 起独立实例）：\n"
+            "        create user \"<POSTGRES_USER>\" with password '<POSTGRES_PASSWORD>';\n"
+            "        create database \"<POSTGRES_DB>\" owner \"<POSTGRES_USER>\";\n"
+            "   B. Docker 卷是旧密码时代初始化的（项目删了重新生成，密码换了，卷没删）：\n"
+            "      解决：make stop && docker compose down --volumes && make start\n"
+            "      （⚠️ 会清空该卷里的数据；旧数据在 backups/ 有备份则可恢复）"
+        )
     if (
-        "password authentication failed" in text
-        or "could not connect" in text
+        "could not connect" in text
         or "connection refused" in text
         or "operationalerror" in text
     ):
@@ -261,7 +271,8 @@ async def init_db() -> None:
         try:
             is_first_run = not await has_alembic_version_table()
         except Exception as exc:
-            logger.warning(f"⚠️ 检查 alembic 状态失败，降级为首次：{exc}")
+            logger.warning(_diagnose_alembic_error(f"{type(exc).__name__}: {exc}"))
+            logger.warning("⚠️ 因上述原因检查 alembic 状态失败，降级为首次启动流程")
             is_first_run = True
 
         if is_first_run:
@@ -273,7 +284,8 @@ async def init_db() -> None:
             try:
                 await create_tables()
             except Exception as exc:
-                logger.error(f"❌ create_all 失败：{exc}")
+                # 同样走中文诊断（认证失败/连不上等原因在这里也能精确翻译）
+                logger.error(_diagnose_alembic_error(f"{type(exc).__name__}: {exc}"))
         else:
             logger.info("🔄 检测到 alembic_version，执行 upgrade head")
             await _alembic_cmd("upgrade", "head", success_msg="✅ Alembic 迁移完成")
@@ -282,4 +294,4 @@ async def init_db() -> None:
         try:
             await create_initial_data()
         except Exception as exc:
-            logger.warning(f"⚠️ 种子数据写入失败：{exc}")
+            logger.warning(_diagnose_alembic_error(f"种子数据写入失败 {type(exc).__name__}: {exc}"))

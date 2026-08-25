@@ -1,7 +1,7 @@
 # {{ project_title }} 后端配置说明
 
 > 所有配置项都在 `app/core/config.py` 中定义，通过 pydantic-settings 从 `.env` 文件加载。
-> 普通用户**只需要关心**：启动后控制台打印的密码、数据库 UI 地址。**不需要改任何字段**。
+> 普通用户**不需要改任何字段**：密码在 `.env`（已自动生成），数据库 UI 地址 http://localhost:8080（make start 后）。
 
 ## 配置文件加载优先级
 

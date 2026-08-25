@@ -1,6 +1,6 @@
 ---
 name: yz-init-server
-description: 一键初始化后端 API 工程（FastAPI + SQLite 数据库，零配置免装 Docker，自动维护表结构）。触发命令：「/yz-init-server」。
+description: 一键初始化后端 API 工程（FastAPI + PostgreSQL + adminer 数据库 UI + 自动维护表结构；中间件优先复用本机已运行的）。触发命令：「/yz-init-server」。
 allowed-tools: Bash(python*scripts/init.py*), Read, Write, Edit, Glob, Grep
 ---
 
@@ -21,12 +21,13 @@ Claude 会询问项目显示名（可选）和初始管理员密码（可选）�
 | 配置     | 默认值                     |
 | -------- | -------------------------- |
 | 后端框架 | FastAPI                    |
-| 数据库   | **SQLite**（文件，零配置） |
+| 数据库   | **PostgreSQL**（复用本机/起 Docker） |
 | Redis    | ❌（默认不用；限流走内存） |
 | 后端端口 | 8000                       |
 
-> **零配置启动**：默认 SQLite + 进程内内存限流，**不需要 Docker**。
-> 要用生产级 PostgreSQL/Redis：跑 `init.py` 时加 `--with-redis`，再把 `.env` 改 `DB_TYPE=postgresql`。
+> **中间件策略**：默认 PostgreSQL——`make start` 优先**复用本机已运行的**，缺的才用 Docker 起。
+> 限流默认走进程内内存；生产多 worker 加 `--with-redis` 启用 Redis。
+> 想要零依赖单文件体验：`.env` 改 `DB_TYPE=sqlite`。
 
 ## 执行流程
 
@@ -34,22 +35,26 @@ Claude 会询问项目显示名（可选）和初始管理员密码（可选）�
 2. 调用 `scripts/init.py <name> --only server`
 3. 渲染 `templates/backend/*` + `templates/root/*`，文件放在项目根目录
 4. 复制到目标目录
-5. 提示启动：`cd <name> && make install && make backend-dev`
+5. 提示启动：`cd <name> && make dev`（一键：装依赖 + 中间件 + 后端）
 
 ## 启动后访问
 
 - 后端 API：http://localhost:8000
 - API 文档：http://localhost:8000/docs
+- 数据库 UI（adminer）：http://localhost:8080（`make start` 后可选启动）
 - 默认账号：`admin` / `admin`（本地开发方便；**生产前必须用 `--admin-pass` 改强密码**）
 
 ## 常用 Make 命令
 
+- `make dev` — 一键启动（装依赖 + 中间件 + 后端）
 - `make install` — 首次装依赖（创建 venv）
 - `make backend-dev` — 本地启动
 - `make test` — 跑测试
 - `make reset-admin` / `make admin-pass NEW=xxx` — 重置密码
+- `make backup` — 备份数据库到 backups/
+- `make use-sqlite` / `make use-pg` — 一键切换数据库模式
 - `make db-migrate MSG="描述"` / `make db-upgrade` / `make db-downgrade` — 数据库迁移
-- `make start` / `make stop` — 中间件启停（仅 PG/Redis 模式需要；**优先复用本机已运行的服务**）
+- `make start` / `make stop` — 中间件启停（**优先复用本机已运行的服务**，缺的用 Docker 起；backend-dev 会自动调用）
 
 ## 与其他命令的关系
 

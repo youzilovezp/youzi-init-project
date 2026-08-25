@@ -436,9 +436,9 @@ do_status() {
         echo "    ⚠️  jinja2: 未安装（scripts/init.py 需要；pip install jinja2）"
     fi
     if command -v docker >/dev/null 2>&1; then
-        echo "    ✅ docker: $(docker --version 2>&1)（可选——默认 SQLite 模式不需要）"
+        echo "    ✅ docker: $(docker --version 2>&1)（默认中间件 PostgreSQL 用；本机已装 PG 则不需要）"
     else
-        echo "    ℹ️  docker: 未安装（默认不需要；只有 DB_TYPE=postgresql 才需要）"
+        echo "    ⚠️  docker: 未安装（make start 起 PostgreSQL 需要；本机已装 PG 可忽略）"
     fi
 }
 

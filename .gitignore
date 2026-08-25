@@ -27,6 +27,9 @@ node_modules/
 .DS_Store
 Thumbs.db
 
+# 项目资源(本地维护,不纳入版本控制)
+assets/
+
 # 生成的项目（init.py 产生的输出，避免误提交）
 my-admin/
 my-api/
@@ -44,3 +47,4 @@ logs/
 .claude
 .code-review-graph
 .idea
+.serena

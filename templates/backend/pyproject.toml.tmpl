@@ -12,15 +12,12 @@ dependencies = [
     # "Application startup complete" 不打印，导致 uvicorn 一直返回 502。
     "uvicorn[standard]>=0.27.0,<0.31.0",
 
-    # 数据库（默认 SQLite，零配置；要 PG 把 DB_TYPE 改 postgresql 再装下方的 pg 依赖）
+    # 数据库（默认 PostgreSQL；DB_TYPE=sqlite 时用 aiosqlite）
     "sqlalchemy[asyncio]>=2.0.25",
     "alembic>=1.13.1",
-    "aiosqlite>=0.20.0",      # SQLite 异步驱动（默认）
-{% if enable_redis %}
-    # PostgreSQL 驱动——生产用，本地默认 sqlite 不需要
-    "asyncpg>=0.29.0",         # PostgreSQL 异步驱动
+    "asyncpg>=0.29.0",         # PostgreSQL 异步驱动（默认）
     "psycopg2-binary>=2.9.9",  # PostgreSQL 同步驱动（alembic 用）
-{% endif %}
+    "aiosqlite>=0.20.0",       # SQLite 异步驱动（DB_TYPE=sqlite 时用）
     # 配置 / 安全
     "pydantic[email]>=2.6.0",   # [email] 提供 EmailStr 校验
     "pydantic-settings>=2.2.0",

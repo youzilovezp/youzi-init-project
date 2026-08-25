@@ -9,18 +9,13 @@
 {% if only == 'admin' %}
 基于 **FastAPI + Vue 3 + TypeScript + Element Plus** 的完整管理系统脚手架。
 
-## 三步启动
+## 一键启动
 
 ```bash
-# 1. 首次：装依赖（一次性）
-make install
-
-# 2. 启动后端（终端 A，默认 SQLite 零配置，免装 Docker）
-make backend-dev
-
-# 3. 启动前端（终端 B）
-make frontend-dev
+make dev    # 装依赖 + 准备中间件 + 后端 + 前端，Ctrl+C 一起停
 ```
+
+分开跑（输出更清晰）：`make install` → `make backend-dev`（终端 A）→ `make frontend-dev`（终端 B）。
 
 ## 启动后访问
 
@@ -29,14 +24,16 @@ make frontend-dev
 | 前端 | http://localhost:3000 | 用户界面 |
 | 后端 API | http://localhost:8000 | REST 接口 |
 | API 文档 | http://localhost:8000/docs | Swagger UI（点 "Authorize" 输入 token 调试） |
-| 账号 | `{{ admin_user }}` / `{{ admin_pass }}` | 登录（**生产前必须改密码**） |
+| 数据库 UI | http://localhost:8080 | adminer（`make start` 后可用；登录信息见下） |
+| 账号 | `{{ admin_user }}` / 见 `backend/.env` 的 `INITIAL_ADMIN_PASSWORD`（默认 `admin`） | 登录（**生产前必须改密码**） |
 
-> 💡 数据存在 `backend/data/app.db` 一个文件里，备份 = 复制这个文件。
+> 💡 adminer 登录：Docker 起的 PG 填 Server=`{{ project_name }}-postgres`；复用本机 PG 填 `host.docker.internal`。用户名/密码/库见 `backend/.env`。
 
 ## 日常用到的命令
 
 ```bash
 make help            # 查看完整命令列表
+make dev             # 一键启动（装依赖 + 中间件 + 服务）
 make install         # 装依赖（后端 venv + 前端 node_modules）
 make backend-dev     # 启动后端（自动建表 + 种子）
 make frontend-dev    # 启动前端
@@ -46,7 +43,9 @@ make db-upgrade      # 应用迁移
 make db-downgrade    # ⚠️ 回滚一步迁移
 make reset-admin     # 忘了密码？重置
 make admin-pass NEW=xxx  # 重置为指定密码
-make start           # 启动 PG/Redis（仅生产模式；优先复用本机已运行的服务）
+make start           # 启动中间件（优先复用本机已运行的 PG/Redis，缺的用 Docker 起）
+make use-sqlite     # 切换 SQLite（零依赖单文件）
+make use-pg         # 切换回 PostgreSQL
 make stop            # 停止 Docker 中间件容器
 ```
 
@@ -65,7 +64,6 @@ python backend/scripts/add_module.py order --title "订单管理"
 ├── backend/                # Python 后端（FastAPI）
 │   ├── app/                # 应用代码（API/Service/CRUD/Model）
 │   ├── alembic/            # 数据库迁移
-│   ├── data/app.db         # SQLite 数据库（默认；全部数据在这一个文件）
 │   ├── docs/               # 架构/技术栈/配置/开发/API 文档
 │   ├── tests/              # 测试
 │   ├── scripts/            # 辅助脚本（reset_admin.py / add_module.py）
@@ -79,7 +77,7 @@ python backend/scripts/add_module.py order --title "订单管理"
 │   ├── vite.config.ts
 │   ├── tsconfig.json
 │   └── .env.development
-├── docker-compose.yml      # PostgreSQL/Redis（仅 DB_TYPE=postgresql 时使用）
+├── docker-compose.yml      # PostgreSQL/Redis + adminer（缺中间件时 make start 用 Docker 起）
 ├── Makefile                # 常用命令
 └── 项目说明.md
 ```
@@ -99,14 +97,10 @@ python backend/scripts/add_module.py order --title "订单管理"
 {% else %}
 基于 **FastAPI + SQLAlchemy 2.0（异步）** 的后端 API 服务脚手架。
 
-## 两步启动
+## 一键启动
 
 ```bash
-# 1. 首次：装依赖（一次性）
-make install
-
-# 2. 启动后端（默认 SQLite 零配置，免装 Docker）
-make backend-dev
+make dev    # 装依赖 + 准备中间件 + 启动后端
 ```
 
 ## 启动后访问
@@ -115,14 +109,15 @@ make backend-dev
 |---|---|
 | 后端 API | http://localhost:{{ backend_port }} |
 | API 文档 | http://localhost:{{ backend_port }}/docs |
-| 账号 | `{{ admin_user }}` / `{{ admin_pass }}`（**生产前必须改密码**） |
+| 账号 | `{{ admin_user }}` / 见 `.env` 的 `INITIAL_ADMIN_PASSWORD`（默认 `admin`） |
 
-> 💡 数据存在 `data/app.db` 一个文件里，备份 = 复制这个文件。
+> 💡 adminer 登录：Docker 起的 PG 填 Server=`{{ project_name }}-postgres`；复用本机 PG 填 `host.docker.internal`。用户名/密码/库见 `.env`。
 
 ## 日常用到的命令
 
 ```bash
 make help            # 查看完整命令列表
+make dev             # 一键启动（装依赖 + 中间件 + 服务）
 make install         # 装依赖（创建 venv）
 make backend-dev     # 启动后端
 make test            # 跑测试
@@ -131,7 +126,9 @@ make db-upgrade      # 应用迁移
 make db-downgrade    # ⚠️ 回滚一步迁移
 make reset-admin     # 忘了密码？重置
 make admin-pass NEW=xxx  # 重置为指定密码
-make start           # 启动 PG/Redis（仅生产模式；优先复用本机已运行的服务）
+make start           # 启动中间件（优先复用本机已运行的 PG/Redis，缺的用 Docker 起）
+make use-sqlite     # 切换 SQLite（零依赖单文件）
+make use-pg         # 切换回 PostgreSQL
 make stop            # 停止 Docker 中间件容器
 ```
 
@@ -158,14 +155,13 @@ python scripts/add_module.py order --title "订单管理"
 │   ├── deps.py           # 依赖注入
 │   └── main.py           # 入口
 ├── alembic/              # 数据库迁移
-├── data/app.db           # SQLite 数据库（默认）
 ├── docs/                 # 架构/技术栈/配置/开发/API 文档
 ├── tests/                # 测试
 ├── scripts/              # 辅助脚本（reset_admin.py / add_module.py）
 ├── docker/               # Dockerfile
 ├── .env.example          # 环境变量样例
 ├── pyproject.toml
-├── docker-compose.yml    # PostgreSQL/Redis（仅 DB_TYPE=postgresql 时使用）
+├── docker-compose.yml    # PostgreSQL/Redis + adminer（缺中间件时 make start 用 Docker 起）
 ├── Makefile              # 常用命令
 └── 后端说明.md
 ```

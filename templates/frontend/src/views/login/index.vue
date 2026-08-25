@@ -76,7 +76,7 @@ async function onSubmit() {
         </el-form-item>
       </el-form>
 
-      <p class="tips">首次登录请使用后端启动时控制台打印的随机密码（详见后端说明）</p>
+      <p class="tips">默认账号 admin，密码见 backend/.env 的 INITIAL_ADMIN_PASSWORD</p>
     </div>
   </div>
 </template>

@@ -21,17 +21,15 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-## 3. 启动中间件
+## 3. 中间件（PostgreSQL）
 
-在工程根目录：
+默认 PostgreSQL。`make start` / `make backend-dev` 会自动准备——**优先复用本机已运行的**，缺的才用 Docker 起：
 
 ```bash
-make start
-# 或
-docker compose up -d
+make start    # 复用本机 PG（要求 .env 的用户/密码/库已存在）；没有则 Docker 起独立实例
 ```
 
-启动后包含：postgres + redis + **adminer（数据库 UI）**。
+想零依赖单文件：`.env` 改 `DB_TYPE=sqlite`（存 `backend/data/app.db`）。
 
 ## 4. 启动开发服务器
 
@@ -143,7 +141,7 @@ A: `.env` 文件不存在或 `SECRET_KEY` 仍是 `__SECRET_KEY__` 占位符。`m
 ### Q: 数据库连接失败
 
 A: 看启动日志的中文诊断。常见原因：
-- 中间件没启动 → `make start`
+- PostgreSQL 连接失败 → `make start`；复用本机 PG 时确认 .env 凭据在该实例已创建
 - 端口被占用 → `make stop` 后 `lsof -i :5432` 查
 - 密码不一致 → 重新跑 `make reset-admin` 不影响，DB 密码在 .env
 
@@ -151,15 +149,15 @@ A: 看启动日志的中文诊断。常见原因：
 
 A: alembic 自动检测版本号自动迁移，但新增字段可能需要手动处理：
 - 增加列：自动迁移（默认值）
-- 改类型/删字段：需手动 `make db-reset` ⚠️（清数据）
+- 改类型/删字段：SQLite 删 `data/app.db`（或 backend/data/app.db）重启重建 ⚠️（清数据）；PG 备份后删库重建
 
 ### Q: 忘了 admin 密码
 
-A: `make reset-admin` —— 会打印新随机密码。
+A: `make reset-admin` —— 重置为 admin；`make admin-pass NEW=xxx` 指定新密码。
 
 ### Q: 想重置整个数据库
 
-A: `make db-reset` —— 删除所有数据卷后重建。
+A: SQLite 删 `data/app.db` 后重启；PG 用 `make stop` 后 `docker compose down --volumes` 再 `make start`。
 
 ### Q: 端口 8000 被占用
 

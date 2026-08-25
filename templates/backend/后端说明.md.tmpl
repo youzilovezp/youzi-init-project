@@ -5,12 +5,13 @@
 ## 启动
 
 ```bash
-# 启动中间件（在工程根目录）
-cd .. && make start
+# 推荐：用工程根目录的 Makefile（自动准备中间件 + venv）
+cd .. && make install && make backend-dev
 
-# 安装依赖 + 启动
-uv pip install -e ".[dev]" || pip install -e ".[dev]"
-uvicorn app.main:app --reload
+# 或手动：
+pip install -e ".[dev]"
+cd .. && make start        # 先确保 PostgreSQL 就绪（复用本机 / Docker 起）
+cd backend && uvicorn app.main:app --reload
 ```
 
 或者用工程根目录的 Makefile：
@@ -64,19 +65,23 @@ backend/
 python scripts/add_module.py order --title "订单管理"
 ```
 
-脚本自动生成 6 个文件（model/schema/crud/router/view/api），并打印你需要手动注册的 5 处地方。
+脚本自动生成后端 4 个文件（model/schema/crud/router；admin 模式检测到前端工程时再生成 view/api），并打印你需要手动注册的地方。
 
 ## 日常用到的命令
 
 ```bash
 make help               # 查看完整命令列表
-make backend-dev        # 启动后端（自动建表 + 种子）
-make db-shell           # 进入 psql
-make reset-admin        # 重置管理员密码
+make install            # 装依赖（创建 venv）
+make backend-dev        # 启动后端（自动准备中间件 + 建表 + 种子）
+make test               # 跑测试
+make db-migrate MSG="add xxx"  # 生成迁移
+make db-upgrade         # 应用迁移
+make db-downgrade       # ⚠️ 回滚一步
+make reset-admin        # 重置管理员密码（默认重置为 admin）
 make admin-pass NEW=xxx # 重置为指定密码
-make backup             # 备份数据库
-make restore FILE=...   # 从备份恢复
-make db-reset           # ⚠️ 重置数据库
+make start              # 启动中间件（优先复用本机已有服务，缺的用 Docker 起）
+make stop               # 停止 Docker 中间件容器
+make backup             # 备份数据库到 backups/（PG 用 pg_dump）
 ```
 
 ## 文档索引

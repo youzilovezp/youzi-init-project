@@ -24,9 +24,8 @@
 
 # 2. 按提示回答（可全回车跳过）→ my-app/ 生成
 
-# 3. 启动（默认 SQLite，零配置、免装 Docker）
-cd my-app && make install && make backend-dev   # 终端 A
-make frontend-dev                                # 终端 B
+# 3. 一键启动（默认 PostgreSQL——自动复用本机已有的，缺的用 Docker 起）
+cd my-app && make dev
 ```
 
 打开 **http://localhost:3000**，账号 `admin` / `admin`，登录成功 ✅
@@ -45,7 +44,7 @@ make frontend-dev                                # 终端 B
         ▼
 Claude 做：
   📋 询问显示名 + 初始密码（都可跳过）
-  🛠️  用 Jinja2 渲染所有模板（FastAPI + Vue 3 + SQLAlchemy…）
+  🛠️  用 Jinja2 渲染所有模板（FastAPI + Vue 3 + PostgreSQL + SQLAlchemy…）
   🔐  生成 64 位随机 SECRET_KEY 写入 .env
   🌱  首次启动自动建表 + 种子账号
   📦  生成 backend/ + frontend/ + Makefile + 文档
@@ -103,8 +102,8 @@ Claude 做：
 
 | 场景 | 方案 |
 |---|---|
-| 默认 | **SQLite 文件**（`backend/data/app.db`），零配置免装任何东西 |
-| 生产 | `.env` 改 `DB_TYPE=postgresql`；`make start` **优先复用本机已运行的 PG/Redis**，缺的才用 Docker 起 |
+| 默认 | **PostgreSQL**——`make start` **优先复用本机已运行的**，缺的才用 Docker 起（adminer 数据库 UI 可选） |
+| 零依赖体验 | `.env` 改 `DB_TYPE=sqlite`（单文件 `backend/data/app.db`） |
 
 ---
 
@@ -148,7 +147,7 @@ python backend/scripts/add_module.py order --title "订单管理" \
 | 🐍 | Python | 3.11+ |
 | ⚡ | FastAPI | 0.110+ |
 | 🗄️ | SQLAlchemy | 2.0 async |
-| 💾 | SQLite（默认）/ PostgreSQL（生产） | — |
+| 💾 | PostgreSQL（默认，16）/ SQLite（可选） | — |
 | 📦 | Pydantic | v2 |
 | 🔐 | PyJWT + bcrypt | 内置 |
 | 🔄 | Alembic | 1.13+ |

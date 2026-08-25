@@ -3,12 +3,13 @@
 scaffold-init 初始化脚本。
 
 设计原则：给非技术人员使用——CLI 越简单越好。
-    python scripts/init.py my-app                  # 默认 admin 模式（前后端 + SQLite，零配置免 Docker）
+    python scripts/init.py my-app                  # 默认 admin 模式（前后端 + PostgreSQL）
     python scripts/init.py my-app --only ui        # 仅前端
     python scripts/init.py my-app --only server    # 仅后端
     python scripts/init.py my-app --with-redis     # 启用 Redis（生产多 worker 场景）
 
-中间件 / 数据库 / 端口全部走 .env 或默认值，不再暴露 CLI 参数。
+中间件策略：make start 优先复用本机已运行的 PostgreSQL/Redis，缺的才用 Docker 起。
+数据库 / 端口全部走 .env 或默认值。
 
 完整文档见 templates/skills/<mode>/SKILL.md。
 """
@@ -51,10 +52,8 @@ def build_context(args: argparse.Namespace) -> dict:
         "project_name": args.project_name,
         "project_title": args.project_title,
         "secret_key": secrets.token_hex(32),
-        "enable_i18n": True,
         "only": args.only,
-        # 默认 SQLite：零配置免装 Docker
-        # --with-redis 启用（生产多 worker / 进程重启不丢计数场景）
+        # Redis 默认关：限流/黑名单走进程内内存；--with-redis 启用（生产多 worker 场景）
         "enable_redis": args.with_redis,
         "backend_port": DEFAULT_BACKEND_PORT,
         "frontend_port": DEFAULT_FRONTEND_PORT,
@@ -267,45 +266,10 @@ def init_git_safely(target_dir: Path) -> None:
         warn(f"git 初始化出错：{type(e).__name__}: {e}")
 
 
-def mark_docker_needs(target_dir: Path, only: str) -> None:
-    """如果项目用了 PG/Redis，标记 .docker-needs 让 make start 知道要启容器。
-
-    默认 SQLite + 无 Redis = 不需要 Docker，make start 直接提示跳过。
-    """
-    needs_docker = False
-    if only in ("admin", "server"):
-        # 检查生成的 .env
-        env_path = (
-            target_dir / "backend" / ".env" if only == "admin" else target_dir / ".env"
-        )
-        if env_path.exists():
-            content = env_path.read_text(encoding="utf-8")
-            for line in content.splitlines():
-                line = line.strip()
-                if line.startswith("#") or "=" not in line:
-                    continue
-                k, _, v = line.partition("=")
-                v = v.strip()
-                if k == "DB_TYPE" and v == "postgresql":
-                    needs_docker = True
-                if k == "REDIS_HOST" and v:
-                    needs_docker = True
-    if needs_docker:
-        (target_dir / ".docker-needs").write_text(
-            "# 本项目用了 PostgreSQL/Redis，需要 `make start` 启 Docker\n",
-            encoding="utf-8",
-        )
-    else:
-        # 确保不存在旧的标记
-        marker = target_dir / ".docker-needs"
-        if marker.exists():
-            marker.unlink()
-
-
 # ---------- Main ----------
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="初始化管理系统脚手架（默认 admin 模式：前后端 + SQLite 零配置）"
+        description="初始化管理系统脚手架（默认 admin 模式：前后端 + PostgreSQL）"
     )
     parser.add_argument("project_name", help="项目名（kebab-case），如 my-app")
     parser.add_argument(
@@ -439,8 +403,6 @@ def main() -> int:
     if args.init_git:
         init_git_safely(target_dir)
 
-    mark_docker_needs(target_dir, args.only)
-
     print("✅ 项目生成完成！")
     print(f"   默认账号：{args.admin_user} / {args.admin_pass}")
     print(f"   后端地址：http://localhost:{DEFAULT_BACKEND_PORT}")
@@ -458,17 +420,17 @@ def main() -> int:
     print(f"   前端地址：http://localhost:{DEFAULT_FRONTEND_PORT}")
     if args.only == "admin":
         print()
-        print("接下来（默认 SQLite，零配置、免装 Docker）：")
+        print("接下来（默认 PostgreSQL，中间件自动就绪）：")
         print(f"  cd {args.project_name}")
         print("  make install        # 装后端 + 前端依赖（首次）")
-        print("  make backend-dev    # 终端 A：启动后端")
+        print("  make backend-dev    # 终端 A：启动后端（自动复用本机 PG / 起 Docker）")
         print("  make frontend-dev   # 终端 B：启动前端")
     elif args.only == "server":
         print()
-        print("接下来（默认 SQLite，零配置、免装 Docker）：")
+        print("接下来（默认 PostgreSQL，中间件自动就绪）：")
         print(f"  cd {args.project_name}")
         print("  make install        # 装后端依赖（首次）")
-        print("  make backend-dev    # 启动后端开发服务器")
+        print("  make backend-dev    # 启动后端（自动复用本机 PG / 起 Docker）")
     else:
         print()
         print("接下来：")
