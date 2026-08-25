@@ -1,29 +1,63 @@
-# 一键启动 {{ project_title }} 所有依赖
+# 一键启动 {{ project_title }} 所有依赖（含 backend）
 # 用法：docker compose up -d
 # 配套 UI：adminer（端口 8080，看数据库）
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: {{ project_name }}-postgres
+  backend:
+    build:
+      # server 模式 backend 文件直接放项目根;admin 模式在 backend/ 子目录
+      context: {% if only == 'admin' %}./backend{% else %}.{% endif %}
+      dockerfile: docker/Dockerfile
+    container_name: {{ project_name }}-backend
+    env_file: {% if only == 'admin' %}./backend/.env{% else %}.env{% endif %}
     environment:
-      POSTGRES_USER: {{ project_name }}
-      POSTGRES_PASSWORD: {{ db_password }}
-      POSTGRES_DB: {{ project_name }}
+      # 在容器内，DB / Redis 用 compose service name
+      POSTGRES_HOST: {{ project_name }}-postgres
+{% if enable_redis %}
+      REDIS_HOST: {{ project_name }}-redis
+{% endif %}
     ports:
-      - "{{ postgres_port }}:5432"
+      - "{{ backend_port }}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+{% if enable_redis %}
+      redis:
+        condition: service_healthy
+{% endif %}
+    restart: unless-stopped
+    healthcheck:
+      # /readyz 含 DB ping，503 表示未就绪。slim 镜像无 wget，用 python urllib 替代。
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/readyz', timeout=3).status == 200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  postgres:
+    image: postgres:16.4-alpine
+    container_name: {{ project_name }}-postgres
+    # admin 模式 .env 在 backend/，server 模式在根目录；env_file 让容器直接拿到 .env 里的所有 KEY=VAL
+    env_file: {% if only == 'admin' %}./backend/.env{% else %}.env{% endif %}
+    # POSTGRES_PASSWORD 由 env_file 提供——直接复用即可，不要在 environment 再写 ${POSTGRES_PASSWORD}，
+    # 否则 docker compose 会做 compose-time 插值（读 shell env 而不是 env_file），结果是空字符串。
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-{{ project_name }}}
+      POSTGRES_DB: ${POSTGRES_DB:-{{ project_name }}}
+    ports:
+      - "${POSTGRES_PORT:-{{ postgres_port }}}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U {{ project_name }}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-{{ project_name }}}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   adminer:
     # 数据库管理 UI（非技术用户必备）：http://localhost:8080
-    # 登录信息：PostgreSQL / {{ postgres_port }} / {{ project_name }} / {{ project_name }} / {{ db_password }}
-    image: adminer:latest
+    # 登录：Server={{ project_name }}-postgres / Username=见 .env / Password=见 .env / Database=见 .env
+    image: adminer:4.8.1
     container_name: {{ project_name }}-adminer
     ports:
       - "8080:8080"
@@ -36,54 +70,19 @@ services:
 
 {% if enable_redis %}
   redis:
-    image: redis:7-alpine
+    image: redis:7.2-alpine
     container_name: {{ project_name }}-redis
+    env_file: {% if only == 'admin' %}./backend/.env{% else %}.env{% endif %}
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}", "--appendonly", "yes"]
     ports:
-      - "{{ redis_port }}:6379"
+      - "${REDIS_PORT:-{{ redis_port }}}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5
-{% endif %}
-{% if enable_rabbitmq %}
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
-    container_name: {{ project_name }}-rabbitmq
-    environment:
-      RABBITMQ_DEFAULT_USER: {{ project_name }}
-      RABBITMQ_DEFAULT_PASS: {{ rabbitmq_password }}
-    ports:
-      - "{{ rabbitmq_port }}:5672"
-      - "{{ rabbitmq_mgmt_port }}:15672"
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-{% endif %}
-{% if enable_minio %}
-  minio:
-    image: minio/minio:latest
-    container_name: {{ project_name }}-minio
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: {{ minio_user }}
-      MINIO_ROOT_PASSWORD: {{ minio_password }}
-    ports:
-      - "{{ minio_api_port }}:9000"
-      - "{{ minio_console_port }}:9001"
-    volumes:
-      - minio_data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
 {% endif %}
 
 volumes:
@@ -92,12 +91,4 @@ volumes:
 {% if enable_redis %}
   redis_data:
     name: {{ project_name }}_redis_data
-{% endif %}
-{% if enable_rabbitmq %}
-  rabbitmq_data:
-    name: {{ project_name }}_rabbitmq_data
-{% endif %}
-{% if enable_minio %}
-  minio_data:
-    name: {{ project_name }}_minio_data
 {% endif %}

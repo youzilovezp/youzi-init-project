@@ -29,7 +29,12 @@ async function onSubmit() {
     try {
       await userStore.login(form)
       ElMessage.success('登录成功')
-      const redirect = (route.query.redirect as string) || '/dashboard'
+      // 修复：之前直接 router.push(route.query.redirect) 是 open redirect 漏洞。
+      // 攻击者构造 /login?redirect=//evil.com 可把用户重定向到外部域名。
+      // 现在只接受以单个 / 开头（不是 // 协议相对、不是 javascript: 等）
+      const raw = route.query.redirect as string | undefined
+      const redirect =
+        raw && raw.startsWith('/') && !raw.startsWith('//') ? raw : '/dashboard'
       router.push(redirect)
     } finally {
       loading.value = false

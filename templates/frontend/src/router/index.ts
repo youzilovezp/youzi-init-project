@@ -71,7 +71,8 @@ router.beforeEach(async (to, _from, next) => {
       await userStore.fetchProfile()
     } catch (e) {
       await userStore.logout()
-      return next({ name: 'Login' })
+      // 修复：刷新受保护路由时丢 redirect，导致登录后被送到默认页
+      return next({ name: 'Login', query: { redirect: to.fullPath } })
     }
   }
 

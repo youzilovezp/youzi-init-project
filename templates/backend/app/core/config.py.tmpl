@@ -47,29 +47,27 @@ class Settings(BaseSettings):
     APP_NAME: str = "{{ project_title }}"
     APP_DESCRIPTION: str = "{{ project_title }} 管理系统后端 API"
     APP_ENV: Literal["dev", "test", "prod"] = "dev"
-    DEBUG: bool = True
+    DEBUG: bool = False   # 生产必须 false；dev 在 .env 中显式打开
     API_V1_PREFIX: str = "/api/v1"
 
     # ---------- 安全 ----------
-    SECRET_KEY: str = Field(..., description="JWT 签名密钥，请使用 openssl rand -hex 32 生成")
-    # 限定算法集合，禁止被外部 .env 改成 'none'
+    SECRET_KEY: str = Field(
+        ...,
+        min_length=32,
+        description="JWT 签名密钥，至少 32 字符，请使用 openssl rand -hex 32 生成",
+    )
     JWT_ALGORITHM: Literal["HS256", "HS384", "HS512"] = "HS256"
-    # 单一过期时间源：单位分钟；ACCESS_TOKEN_EXPIRE_SECONDS 由其派生，避免双字段不一致
-    JWT_EXPIRE_MINUTES: int = 60 * 24  # 24 小时
-
-    @property
-    def ACCESS_TOKEN_EXPIRE_SECONDS(self) -> int:
-        """供前端展示的过期时间（秒），派生自 JWT_EXPIRE_MINUTES。"""
-        return self.JWT_EXPIRE_MINUTES * 60
+    # 短期 token 60 分钟；如需长期会话请实现 /auth/refresh
+    JWT_EXPIRE_MINUTES: int = 60
 
     # ---------- 服务监听 ----------
     HOST: str = "0.0.0.0"
     PORT: int = {{ backend_port }}
-    WORKERS: int = 1
+    WORKERS: int = 4  # K8s / gunicorn 生产 worker 数
 
     # ---------- 数据库 ----------
-    # 默认 localhost：`make backend-dev` 在宿主机上跑 uvicorn，连宿主端口。
-    # 容器内部跑时改成 `postgres`（docker compose service name）
+    # 默认 `localhost`（宿主机跑 `make backend-dev` 的常见场景：uvicorn 连
+    # 本机 docker compose 暴露的端口）。如在 docker 容器内运行，改为 `postgres`。
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = {{ postgres_port }}
     POSTGRES_USER: str = "{{ project_name }}"
@@ -78,25 +76,28 @@ class Settings(BaseSettings):
     DB_ECHO: bool = False
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
-
-    # Alembic 用同步 URL（独立引擎，避免异步 greenlet 冲突）
-    ALEMBIC_SYNC_URL: str = (
-        "postgresql+psycopg2://{{ project_name }}:{{ db_password }}@localhost:{{ postgres_port }}/{{ project_name }}"
-    )
+    DB_POOL_PRE_PING: bool = True    # 防长连接被 PG/NAT 静默断开
+    DB_POOL_RECYCLE: int = 3600      # 1 小时回收
 
     @property
     def DATABASE_URL(self) -> str:
+        from urllib.parse import quote
         return (
-            f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
+            f"postgresql+asyncpg://{self.POSTGRES_USER}:{quote(self.POSTGRES_PASSWORD, safe='')}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
 
     @property
     def ALEMBIC_DATABASE_URL(self) -> str:
-        """同步 URL——alembic 走同步路径，使用 psycopg2。"""
-        return self.ALEMBIC_SYNC_URL
+        """alembic 走同步路径，psycopg2。"""
+        from urllib.parse import quote
+        return (
+            f"postgresql+psycopg2://{self.POSTGRES_USER}:{quote(self.POSTGRES_PASSWORD, safe='')}"
+            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        )
 {% if enable_redis %}
     # ---------- Redis ----------
+    # 默认 localhost（宿主机 dev 场景）；docker 容器内运行时改为 `postgres`
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = {{ redis_port }}
     REDIS_DB: int = 0
@@ -107,39 +108,10 @@ class Settings(BaseSettings):
         auth = f":{self.REDIS_PASSWORD}@" if self.REDIS_PASSWORD else ""
         return f"redis://{auth}{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 {% endif %}
-{% if enable_rabbitmq %}
-    # ---------- RabbitMQ ----------
-    RABBITMQ_HOST: str = "localhost"
-    RABBITMQ_PORT: int = {{ rabbitmq_port }}
-    RABBITMQ_USER: str = "{{ project_name }}"
-    RABBITMQ_PASSWORD: str = "{{ rabbitmq_password }}"
-    RABBITMQ_VHOST: str = "/"
-
-    @property
-    def RABBITMQ_URL(self) -> str:
-        return (
-            f"amqp://{self.RABBITMQ_USER}:{self.RABBITMQ_PASSWORD}"
-            f"@{self.RABBITMQ_HOST}:{self.RABBITMQ_PORT}/{self.RABBITMQ_VHOST}"
-        )
-{% endif %}
-{% if enable_minio %}
-    # ---------- MinIO / 对象存储 ----------
-    MINIO_ENDPOINT: str = "localhost:{{ minio_api_port }}"
-    MINIO_ACCESS_KEY: str = "{{ minio_user }}"
-    MINIO_SECRET_KEY: str = "{{ minio_password }}"
-    MINIO_BUCKET: str = "{{ project_name }}"
-    MINIO_SECURE: bool = False
-{% endif %}
-{% if enable_celery %}
-    # ---------- Celery ----------
-    CELERY_BROKER_URL: str | None = None  # 默认与 REDIS_URL 一致
-    CELERY_RESULT_BACKEND: str | None = None
-{% endif %}
     # ---------- CORS ----------
-    # 兼容 JSON 数组、逗号分隔、已是 list 三种写法
+    # 生产必须显式列出可信域名。留空 = 拒绝所有跨域。
     CORS_ORIGINS: Annotated[list[str], BeforeValidator(_parse_cors_origins)] = [
         "http://localhost:{{ frontend_port }}",
-        "http://localhost:3000",
     ]
 
     # ---------- 日志 ----------
@@ -151,11 +123,18 @@ class Settings(BaseSettings):
     INITIAL_ADMIN_PASSWORD: str = "{{ admin_pass }}"
     INITIAL_ADMIN_EMAIL: str = "{{ admin_email }}"
 
-    # ---------- 数据库自动维护（合并三开关为单 bool）----------
-    # true: 首次启动 create_all + stamp head；后续启动 alembic upgrade + 种子补全
-    # false: 完全不维护，由 ops 手工跑 alembic
+    # ---------- 数据库自动维护 ----------
+    # AUTO_INIT_DB: true=首次启动 create_all + stamp head；后续启动 alembic upgrade
+    # AUTO_SEED_DATA: 种子数据。**生产必须 false**（避免 Demo@123 等公开凭据进入生产 DB）
     AUTO_INIT_DB: bool = True
-    AUTO_SEED_DATA: bool = True
+    AUTO_SEED_DATA: bool = False
+
+    # ---------- 受信任主机（防 host header 注入）----------
+    # 必须包含：localhost（dev）+ 你的真实域名（prod）+ testserver（TestClient/pytest）
+    # 错误：只用 ["localhost","127.0.0.1"] → 任何带域名的 nginx 部署直接 400
+    TRUSTED_HOSTS: Annotated[list[str], BeforeValidator(_parse_cors_origins)] = [
+        "localhost", "127.0.0.1", "testserver",
+    ]
 
     model_config = SettingsConfigDict(
         env_file=".env",

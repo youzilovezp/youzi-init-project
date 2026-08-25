@@ -97,12 +97,10 @@ HTTP 请求
 | 中间件 | 用途 | 端口 |
 |---|---|---|
 | PostgreSQL | 主数据库 | 5432 |
-| Redis | 缓存 + Celery broker | 6379 |
+| Redis | 缓存 / 限流 / JWT 黑名单 | 6379 |
 | adminer | 数据库 UI（看数据） | 8080 |
-| RabbitMQ（可选） | 消息队列 | 5672 / 15672 |
-| MinIO（可选） | 对象存储 | 9000 / 9001 |
 
-> 启用 RabbitMQ / MinIO：环境变量 `ENABLE_RABBITMQ=true` / `ENABLE_MINIO=true` 重新生成项目。
+> 后续如需扩展 RabbitMQ / MinIO 等，自行加依赖 + docker-compose service。
 
 ## 6. 加新业务模块
 
@@ -112,4 +110,4 @@ HTTP 请求
 python scripts/add_module.py order --title "订单管理"
 ```
 
-脚本自动生成 model/schema/crud/router/view/api 六个文件。详见 [开发指南](开发指南.md)。
+脚本自动生成 model/schema/crud/router/view/api 六个文件，并提示需要手动注册的 5 处地方。详见 [开发指南](开发指南.md)。

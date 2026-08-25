@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
+import re
 import secrets
 import shutil
 import subprocess
@@ -30,6 +30,11 @@ except ImportError:
     sys.exit(1)
 
 
+def warn(msg: str) -> None:
+    """统一警告输出（黄字 emoji 前缀）。"""
+    print(f"  ⚠️  {msg}", file=sys.stderr)
+
+
 # ---------- 默认值（业界惯例；非技术人员看一眼就懂） ----------
 DEFAULT_ADMIN_USER = "admin"
 DEFAULT_ADMIN_EMAIL = "admin@example.com"
@@ -37,40 +42,10 @@ DEFAULT_BACKEND_PORT = 8000
 DEFAULT_FRONTEND_PORT = 3000
 DEFAULT_POSTGRES_PORT = 5432
 DEFAULT_REDIS_PORT = 6379
-DEFAULT_RABBITMQ_PORT = 5672
-DEFAULT_RABBITMQ_MGMT_PORT = 15672
-DEFAULT_MINIO_API_PORT = 9000
-DEFAULT_MINIO_CONSOLE_PORT = 9001
-
-
-# ---------- 中间件开关：从环境变量读（.env 中也可改） ----------
-def _env_bool(name: str, default: bool) -> bool:
-    """读 ENV 变量，true/1/yes/on 都算 True。"""
-    val = os.environ.get(name, "").lower().strip()
-    if val in ("true", "1", "yes", "on"):
-        return True
-    if val in ("false", "0", "no", "off"):
-        return False
-    return default
-
-
-def _load_middleware_flags() -> dict:
-    """中间件开关：默认 postgresql + redis，其他关闭。
-
-    通过环境变量启用：
-        ENABLE_RABBITMQ=true python scripts/init.py my-app
-        ENABLE_MINIO=true ENABLE_CELERY=true python scripts/init.py my-app
-    """
-    return {
-        "enable_redis": _env_bool("ENABLE_REDIS", True),
-        "enable_rabbitmq": _env_bool("ENABLE_RABBITMQ", False),
-        "enable_celery": _env_bool("ENABLE_CELERY", False),
-        "enable_minio": _env_bool("ENABLE_MINIO", False),
-    }
 
 
 # ---------- Jinja context ----------
-def build_context(args: argparse.Namespace, middleware: dict) -> dict:
+def build_context(args: argparse.Namespace) -> dict:
     return {
         "project_name": args.project_name,
         "project_title": args.project_title,
@@ -78,25 +53,16 @@ def build_context(args: argparse.Namespace, middleware: dict) -> dict:
         # 数据库固定 postgresql
         "enable_i18n": True,
         "only": args.only,
-        **middleware,
-        # 端口：业界惯例
+        "enable_redis": True,  # 默认带 Redis（限流 / 黑名单 / 缓存都用得到）
         "backend_port": DEFAULT_BACKEND_PORT,
         "frontend_port": DEFAULT_FRONTEND_PORT,
         "postgres_port": DEFAULT_POSTGRES_PORT,
         "redis_port": DEFAULT_REDIS_PORT,
-        "rabbitmq_port": DEFAULT_RABBITMQ_PORT,
-        "rabbitmq_mgmt_port": DEFAULT_RABBITMQ_MGMT_PORT,
-        "minio_api_port": DEFAULT_MINIO_API_PORT,
-        "minio_console_port": DEFAULT_MINIO_CONSOLE_PORT,
-        # admin 凭证
         "admin_user": args.admin_user,
         "admin_pass": args.admin_pass,
         "admin_email": DEFAULT_ADMIN_EMAIL,
-        # 中间件密码（强随机，默认非技术用户无须关心）
         "db_password": secrets.token_urlsafe(20),
-        "rabbitmq_password": secrets.token_urlsafe(20),
-        "minio_user": f"minio-{secrets.token_hex(4)}",
-        "minio_password": secrets.token_urlsafe(28),
+        "redis_password": secrets.token_urlsafe(20),
     }
 
 
@@ -112,10 +78,6 @@ def render_template(
 
     if src.suffix == ".tmpl":
         rel = str(src.relative_to(search_path))
-        if rel in CONDITIONAL_TEMPLATES and not context.get(
-            CONDITIONAL_TEMPLATES[rel], False
-        ):
-            return
         target_path: Path = dst.with_suffix("")
         target_path.parent.mkdir(parents=True, exist_ok=True)
         template = env.get_template(rel)
@@ -145,6 +107,10 @@ def generate_ui(
 ) -> None:
     print("📦 模式：ui（仅前端）")
     render_template(templates_dir / "frontend", target_dir, env, context, templates_dir)
+    # 单独渲染根 .gitignore.tmpl（带 {% if only == 'admin' %} 条件，确保 ui-only 模式也有干净的根 .gitignore）
+    env.get_template("root/.gitignore.tmpl").stream(**context).dump(
+        str(target_dir / ".gitignore")
+    )
 
 
 def generate_server(
@@ -157,11 +123,6 @@ def generate_server(
 
 
 GENERATORS = {"admin": generate_admin, "ui": generate_ui, "server": generate_server}
-
-
-CONDITIONAL_TEMPLATES = {
-    "backend/app/tasks/celery_app.py.tmpl": "enable_celery",
-}
 
 
 # ---------- Frontend post-processing ----------
@@ -226,14 +187,40 @@ def post_process_frontend(target_dir: Path, context: dict) -> None:
 
 
 # ---------- .env 写入 ----------
-def write_dotenv(target: Path, env_example: Path, secret_key: str) -> None:
-    """把 .env.example 渲染后写入 .env，用真实 SECRET_KEY 替换占位符。"""
-    content = env_example.read_text(encoding="utf-8").replace(
-        "CHANGE_ME_TO_RANDOM_HEX", secret_key
-    )
+def write_dotenv(
+    target: Path,
+    env_example: Path,
+    ctx: dict,
+) -> None:
+    """把 .env.example 渲染后写入 .env，用真实密码替换所有占位符。
+
+    之前只替换 SECRET_KEY → POSTGRES_PASSWORD 等仍是 CHANGE_ME_* 占位符，
+    用户 .env 拿不到真实密码，启动必失败。
+
+    之后：同时确保 .env / .env.* 被 .gitignore 排除（admin 模式：项目根；
+    server 模式：target_dir 根）。
+    """
+    content = env_example.read_text(encoding="utf-8")
+    # 替换规则:CHANGE_ME_XXX 占位符 → ctx 对应字段
+    replacements = {
+        "__SECRET_KEY__": ctx["secret_key"],
+        "CHANGE_ME_DB_PASSWORD": ctx["db_password"],
+        "CHANGE_ME_REDIS_PASSWORD": ctx["redis_password"],
+        "CHANGE_ME_TO_RANDOM_PASSWORD": ctx["admin_pass"],
+    }
+    # 长 key 先替换(避免 CHANGE_ME_TO_RANDOM_PASSWORD 被 CHANGE_ME_DB 之类先吃掉)
+    for placeholder, real in sorted(replacements.items(), key=lambda x: -len(x[0])):
+        content = content.replace(placeholder, real)
     target.write_text(content, encoding="utf-8")
 
-    gitignore = target.parent.parent / ".gitignore"
+    # 确保 .env / .env.* 被 .gitignore 排除
+    # admin 模式：target = target_dir/backend/.env → 项目根 .gitignore
+    # server 模式：target = target_dir/.env → 项目根 .gitignore（同样位置）
+    gitignore = (
+        target.parent.parent / ".gitignore"
+        if target.parent.name == "backend"
+        else target.parent / ".gitignore"
+    )
     if gitignore.exists():
         gi = gitignore.read_text(encoding="utf-8")
         if ".env" not in gi.splitlines():
@@ -244,8 +231,38 @@ def write_dotenv(target: Path, env_example: Path, secret_key: str) -> None:
 
 def init_git_safely(target_dir: Path) -> None:
     """git init + git add .，.env 由 .gitignore 自动忽略。"""
-    subprocess.run(["git", "init", "-q"], cwd=target_dir, check=False)
-    subprocess.run(["git", "add", "."], cwd=target_dir, check=False)
+    # git 未安装时给出友好提示，而不是抛 FileNotFoundError traceback
+    if not shutil.which("git"):
+        warn("git 未安装，跳过 --init-git（不影响项目生成）")
+        return
+    try:
+        r = subprocess.run(
+            ["git", "init", "-q"],
+            cwd=target_dir,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if r.returncode != 0:
+            warn(
+                f"git init 失败（exit {r.returncode}）：{r.stderr.strip() or '未知错误'}"
+            )
+            return
+        r = subprocess.run(
+            ["git", "add", "."],
+            cwd=target_dir,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if r.returncode != 0:
+            warn(
+                f"git add 失败（exit {r.returncode}）：{r.stderr.strip() or '未知错误'}"
+            )
+    except subprocess.TimeoutExpired:
+        warn("git 命令超时，跳过")
+    except Exception as e:  # noqa: BLE001  最后兜底，绝不静默
+        warn(f"git 初始化出错：{type(e).__name__}: {e}")
 
 
 # ---------- Main ----------
@@ -274,9 +291,31 @@ def main() -> int:
     parser.add_argument("--init-git", action="store_true", help="生成后自动 git init")
 
     args = parser.parse_args()
-    if not args.project_name.replace("-", "").replace("_", "").isalnum():
-        print("项目名只能包含字母、数字、- 和 _", file=sys.stderr)
+    # 关键修复：之前用 str.isalnum() 允许所有 Unicode 字母（包括中文、emoji），
+    # 这些字符进 PostgreSQL user/db 会失败（psycopg2 InvalidName / asyncpg 编码错）。
+    # 改为严格的 ASCII 小写 + 数字 + - + _，与 Docker 容器名规则一致。
+    if not re.match(r"^[a-z][a-z0-9_-]{0,62}$", args.project_name):
+        print(
+            "项目名只能以小写字母开头，由小写字母、数字、-、_ 组成，长度 1-63",
+            file=sys.stderr,
+        )
         return 1
+    if args.project_name in {"admin", "server", "ui"}:
+        print("项目名不能与 skill 模式同名（admin/server/ui）", file=sys.stderr)
+        return 1
+
+    # 防御性校验：title / admin_pass 不应包含会破坏 Python 源码或 shell 的字符
+    # （这些值会插入到 .py docstring / .env / docker-compose.yml）
+    for field_name, value in [
+        ("project_title", args.project_title),
+        ("admin_pass", args.admin_pass),
+    ]:
+        if value and any(c in value for c in ['"', "'", "\\", "\n", "\r", "\0"]):
+            print(
+                f"{field_name} 不能包含引号 / 反斜杠 / 换行等字符",
+                file=sys.stderr,
+            )
+            return 1
 
     # 默认 admin 模式（最常见）
     if args.only is None:
@@ -290,35 +329,45 @@ def main() -> int:
     if args.admin_pass is None:
         args.admin_pass = secrets.token_urlsafe(16)
 
-    middleware = _load_middleware_flags()
-    context = build_context(args, middleware)
+    context = build_context(args)
 
     repo_root = Path(__file__).resolve().parent.parent
     templates_dir = repo_root / "templates"
     target_dir = Path.cwd() / args.project_name
 
-    if target_dir.exists():
+    if target_dir.exists() or target_dir.is_symlink():
+        if target_dir.is_symlink() and not target_dir.exists():
+            # 破损 symlink — 直接报错，让用户清理
+            print(f"❌ 目标已存在破损符号链接：{target_dir}", file=sys.stderr)
+            return 1
+        if target_dir.is_file():
+            print(
+                f"❌ 目标路径已存在且是文件（不是目录）：{target_dir}", file=sys.stderr
+            )
+            print("   请删除该文件或换一个项目名。", file=sys.stderr)
+            return 1
         print(f"❌ 目标目录已存在：{target_dir}", file=sys.stderr)
         print("   如需覆盖请先删除目录，或换一个项目名。", file=sys.stderr)
         return 1
 
+    # Jinja2 Environment：
+    # - StrictUndefined：模板里写 {{ unknown }} 直接报错，避免静默生成空
+    # - autoescape：对 .html / .vue 模板开启 HTML 转义，
+    #   防止用户输入的 project_title / admin_pass 含 < > & 等被注入生成代码
+    # - .py / .toml / .yml / .env 等代码模板仍保持原样输出（用 Markup 转义会破坏语法）
+    def _select_autoescape(template_name: str | None) -> bool:
+        return bool(template_name) and template_name.endswith((".html", ".htm", ".vue"))
+
     env = Environment(
         loader=FileSystemLoader(str(templates_dir)),
         undefined=StrictUndefined,
+        autoescape=_select_autoescape,
         keep_trailing_newline=True,
         lstrip_blocks=False,
         trim_blocks=False,
     )
 
     print(f"🚀 正在生成项目：{args.project_name} -> {target_dir}（{args.only}）")
-    if middleware != {
-        "enable_redis": True,
-        "enable_rabbitmq": False,
-        "enable_celery": False,
-        "enable_minio": False,
-    }:
-        enabled = [k.replace("enable_", "") for k, v in middleware.items() if v]
-        print(f"   启用中间件：{', '.join(enabled)}")
 
     target_dir.mkdir(parents=True)
     GENERATORS[args.only](target_dir, env, context, templates_dir)
@@ -335,7 +384,7 @@ def main() -> int:
                 if args.only == "admin"
                 else target_dir / ".env"
             )
-            write_dotenv(env_target, env_example, context["secret_key"])
+            write_dotenv(env_target, env_example, context)
 
     if args.only in ("admin", "ui"):
         post_process_frontend(

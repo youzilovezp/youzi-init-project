@@ -28,7 +28,7 @@ cd .. && make backend-dev
 
 ```
 🔑 默认管理员密码：xxx（生产环境请立即修改！）
-✅ demo 用户已创建：manager / alice / bob（密码均为 Demo@123）
+✅ demo 用户已创建：manager / alice / bob（仅 dev / test 环境，密码均为 Demo@123；prod 跳过）
 ```
 
 ## 项目结构
@@ -44,7 +44,8 @@ backend/
 │   ├── models/         # ORM 模型
 │   ├── schemas/        # Pydantic 模型
 │   ├── services/       # 业务逻辑
-│   ├── deps.py         # 依赖注入
+│   ├── api/
+│   │   └── deps.py     # 依赖注入（SessionDep / CurrentUser / SuperUser）
 │   └── main.py         # 入口
 ├── alembic/            # 数据库迁移
 ├── docs/               # 架构/技术栈/配置/开发/API 文档
@@ -63,7 +64,7 @@ backend/
 python scripts/add_module.py order --title "订单管理"
 ```
 
-脚本自动生成 6 个文件（model/schema/crud/router/view/api），并打印你需要手动注册的 4 处地方。
+脚本自动生成 6 个文件（model/schema/crud/router/view/api），并打印你需要手动注册的 5 处地方。
 
 ## 日常用到的命令
 

@@ -28,9 +28,25 @@ err()   { printf "  ❌  %s\n" "$*" >&2; }
 title() { printf "\n== %s ==\n" "$*"; }
 hr()    { printf -- "----------------------------------------\n"; }
 
-# ---------- 检测脚本所在目录 ----------
+# ---------- 安全删除：symlink 用 unlink，目录用 rm -rf ----------
+# 用法：safe_rm <path>
+# 关键修复：rm -rf 跟随符号链接会删除链接指向的目录内容，
+# 这里分开处理 symlink 与 directory。
+safe_rm() {
+    local p="$1"
+    if [[ -L "$p" ]]; then
+        rm "$p"                              # 符号链接：只删链接本身
+    elif [[ -d "$p" ]]; then
+        /bin/rm -rf "$p"                     # 真目录：递归删
+    elif [[ -e "$p" ]]; then
+        rm -f "$p"                           # 文件：直接删
+    fi
+    # 不存在：什么都不做
+}
+
+# ---------- 检测脚本所在目录（用物理路径，避免符号链接误判） ----------
 SCRIPT_PATH="${BASH_SOURCE[0]:-$0}"
-SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd -P)"
 
 # ---------- 默认配置 ----------
 SKILLS=(yz-init-admin yz-init-server yz-init-ui)
@@ -84,8 +100,39 @@ parse_args() {
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --dir)  INSTALL_DIR="$2"; shift 2 ;;
-            --mode) INSTALL_MODE="$2"; shift 2 ;;
+            # 支持 --dir=path 与 --dir path 两种形式
+            --dir=*)
+                INSTALL_DIR="${1#*=}"
+                shift
+                ;;
+            --dir)
+                if [[ $# -lt 2 ]]; then
+                    err "--dir 需要一个参数值"
+                    exit 1
+                fi
+                if [[ "$2" == -* ]]; then
+                    err "--dir 的参数值不能以 - 开头: $2"
+                    exit 1
+                fi
+                INSTALL_DIR="$2"
+                shift 2
+                ;;
+            --mode=*)
+                INSTALL_MODE="${1#*=}"
+                shift
+                ;;
+            --mode)
+                if [[ $# -lt 2 ]]; then
+                    err "--mode 需要一个参数值"
+                    exit 1
+                fi
+                if [[ "$2" != "link" && "$2" != "copy" ]]; then
+                    err "--mode 必须是 link 或 copy，得到: $2"
+                    exit 1
+                fi
+                INSTALL_MODE="$2"
+                shift 2
+                ;;
             -h|--help) print_help; exit 0 ;;
             *)
                 err "未知参数: $1"
@@ -94,6 +141,28 @@ parse_args() {
                 ;;
         esac
     done
+
+    # 规范化：去掉尾斜杠，避免路径出现 //yz-init-admin 这种双斜杠
+    INSTALL_DIR="${INSTALL_DIR%/}"
+}
+
+# ---------- 安全覆盖 prompt（非 TTY 时默认 N，绝不覆盖用户数据） ----------
+confirm_replace() {
+    local target="$1"
+    if [[ ! -t 0 ]]; then
+        warn "非交互式 stdin，自动跳过覆盖：$target"
+        return 1
+    fi
+    printf "  是否替换？[y/N] "
+    # 用 || 兜底 stdin EOF / 错误
+    local ans
+    if ! read -r ans; then
+        ans="N"
+    fi
+    case "${ans:-N}" in
+        y|Y|yes|YES|Yes) return 0 ;;
+        *) return 1 ;;
+    esac
 }
 
 # ---------- 安装单个 skill ----------
@@ -113,12 +182,12 @@ install_one_skill() {
     # 检查目标
     if [[ -e "$target" || -L "$target" ]]; then
         warn "目标已存在：$target"
-        printf "  是否替换？[y/N] "; read -r ans
-        if [[ "${ans:-N}" != "y" && "${ans:-N}" != "Y" ]]; then
+        if ! confirm_replace "$target"; then
             info "$skill_name 跳过"
             return 0
         fi
-        /bin/rm -rf "$target"
+        # 用 safe_rm 区分 symlink / directory，绝不跟随 symlink 删用户数据
+        safe_rm "$target"
     fi
 
     mkdir -p "$target"
@@ -155,8 +224,25 @@ do_install() {
         exit 1
     fi
 
-    if [[ ! -f "$SCRIPT_DIR/templates/skills/admin/SKILL.md" ]]; then
-        err "缺少 templates/skills/*/SKILL.md 模板"
+    # 关键修复：原脚本只检查 admin 的 SKILL.md，
+    # server / ui 缺失时 admin 装成功再崩，留下烂摊子。
+    # 这里循环检查全部 3 个 skill 的 SKILL.md
+    local missing_skill_md=()
+    for skill in "${SKILLS[@]}"; do
+        case "$skill" in
+            yz-init-admin)  local path="$SCRIPT_DIR/templates/skills/admin/SKILL.md" ;;
+            yz-init-server) local path="$SCRIPT_DIR/templates/skills/server/SKILL.md" ;;
+            yz-init-ui)     local path="$SCRIPT_DIR/templates/skills/ui/SKILL.md" ;;
+        esac
+        if [[ ! -f "$path" ]]; then
+            missing_skill_md+=("$path")
+        fi
+    done
+    if [[ ${#missing_skill_md[@]} -gt 0 ]]; then
+        err "缺少以下 SKILL.md 模板："
+        for p in "${missing_skill_md[@]}"; do
+            err "  - $p"
+        done
         exit 1
     fi
 
@@ -198,7 +284,7 @@ do_uninstall() {
     for skill in "${SKILLS[@]}"; do
         local target="$INSTALL_DIR/$skill"
         if [[ -e "$target" || -L "$target" ]]; then
-            /bin/rm -rf "$target"
+            safe_rm "$target"      # 用 safe_rm 区分 symlink / 目录
             ok "已删除 $skill"
             found=1
         fi
@@ -217,6 +303,17 @@ do_uninstall() {
 EOF
 }
 
+# ---------- 检测已安装 skill 的真实模式 ----------
+detect_install_mode() {
+    local target="$1"
+    # 优先检查内部 scripts 是不是 symlink（绝大多数情况）
+    if [[ -L "$target/scripts" ]]; then
+        echo "link"
+    else
+        echo "copy"
+    fi
+}
+
 # ---------- update ----------
 do_update() {
     title "更新三个 Skill"
@@ -230,8 +327,12 @@ do_update() {
         fi
         found=1
 
-        if [[ "$INSTALL_MODE" == "link" ]]; then
-            # link 模式下 scripts/templates 已是符号链接，指向当前 SCRIPT_DIR
+        # 检测已安装的真实模式（避免 INSTALL_MODE 全局变量被覆盖）
+        local actual_mode
+        actual_mode=$(detect_install_mode "$target")
+
+        if [[ "$actual_mode" == "link" ]]; then
+            # link 模式：检查 scripts 是否指向当前仓库
             if [[ -L "$target/scripts" ]]; then
                 local cur
                 cur="$(readlink "$target/scripts")"
@@ -240,17 +341,31 @@ do_update() {
                     continue
                 fi
             fi
-            # 重新链接
-            /bin/rm -rf "$target"
+            # scripts 指向别处 / 断了 → 重新链接（安全删除）
+            safe_rm "$target"
             install_one_skill "$skill"
         else
-            # copy 模式：重新复制
-            /bin/rm -rf "$target/scripts" "$target/templates"
+            # copy 模式：先备份再覆盖，避免覆盖用户本地修改
+            if [[ -d "$target/scripts" || -L "$target/scripts" ]]; then
+                local backup_dir
+                backup_dir="$target/.scripts.bak.$(date +%Y%m%d_%H%M%S)"
+                if [[ -d "$target/scripts" ]]; then
+                    cp -R "$target/scripts" "$backup_dir"
+                fi
+                safe_rm "$target/scripts"
+            fi
+            if [[ -d "$target/templates" || -L "$target/templates" ]]; then
+                local backup_dir
+                backup_dir="$target/.templates.bak.$(date +%Y%m%d_%H%M%S)"
+                if [[ -d "$target/templates" ]]; then
+                    cp -R "$target/templates" "$backup_dir"
+                fi
+                safe_rm "$target/templates"
+            fi
             cp -R "$SCRIPT_DIR/scripts" "$target/scripts"
             cp -R "$SCRIPT_DIR/templates" "$target/templates"
-            # 同步 SKILL.md
             cp "$SCRIPT_DIR/templates/skills/${skill#yz-init-}/SKILL.md" "$target/SKILL.md"
-            ok "已更新 $skill"
+            ok "已更新 $skill（复制模式，旧版本备份到 .*.bak.*）"
         fi
     done
 
@@ -271,7 +386,13 @@ do_status() {
     for skill in "${SKILLS[@]}"; do
         local target="$INSTALL_DIR/$skill"
         printf "  [%s]\n" "$skill"
-        if [[ -L "$target/scripts" ]]; then
+        if [[ -L "$target" ]]; then
+            # target 本身是 symlink（少见但可能）
+            local link
+            link="$(readlink "$target")"
+            printf "    状态：    已安装（指向 %s）\n" "$link"
+            printf "    ⚠️  target 是符号链接，建议检查\n"
+        elif [[ -L "$target/scripts" ]]; then
             local link
             link="$(readlink "$target/scripts")"
             printf "    状态：    已安装（符号链接）\n"
@@ -286,9 +407,9 @@ do_status() {
             printf "    ⚠️  复制模式下需 update 同步\n"
         else
             printf "    状态：    未安装\n"
+            echo
             continue
         fi
-        # 关键文件
         if [[ -e "$target/SKILL.md" ]]; then
             printf "    SKILL.md：✅\n"
         else
@@ -307,7 +428,7 @@ do_status() {
     if python3 -c "import jinja2" 2>/dev/null; then
         echo "    ✅ jinja2: $(python3 -c 'import jinja2; print(jinja2.__version__)')"
     else
-        echo "    ⚠️  jinja2: 未安装（运行 pip install jinja2）"
+        echo "    ⚠️  jinja2: 未安装（仅 scripts/init.py 需要，运行 pip install jinja2 后可生成项目）"
     fi
 }
 

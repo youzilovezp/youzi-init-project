@@ -6,11 +6,10 @@
 
 | 模块 | 路径前缀 | 鉴权 | 说明 |
 |---|---|---|---|
-| 健康检查 | `/health` | ❌ | 返回 `{"status":"ok"}` |
+| 健康检查 | `/healthz` / `/readyz` | ❌ | `/healthz` 进程级;`/readyz` 含 DB ping |
 | 登录/登出 | `/api/v1/auth` | 部分 | `/login` 不需要 token |
 | 用户管理 | `/api/v1/users` | ✅ 管理员 | CRUD + 改密码 |
 | 角色管理 | `/api/v1/roles` | ✅ 管理员 | CRUD |
-| 统计 | `/api/v1/stats` | ✅ 登录 | Dashboard 用 |
 
 ## 2. 统一响应格式
 
@@ -24,7 +23,7 @@
 }
 ```
 
-失败（HTTP 状态码仍 200，通过 `code` 区分）：
+失败：
 
 ```json
 {
@@ -34,7 +33,8 @@
 }
 ```
 
-> ⚠️ 后端设计：业务错误**不**通过 HTTP 状态码区分，全部用 `code` 字段判断（避免前后端耦合具体状态码）。
+> 业务错误通过 HTTP 状态码 + `code` 字段双重表达：
+> 401 = 未认证、403 = 权限不足、404 = 资源不存在、422 = 参数校验失败、500 = 服务器错误。
 
 ## 3. 业务码
 
@@ -50,13 +50,13 @@
 
 ## 4. 鉴权
 
-除 `/health` 和 `/api/v1/auth/login` 外，所有接口都需要：
+除 `/healthz`、`/readyz`、`/api/v1/auth/login` 外，所有接口都需要：
 
 ```
 Authorization: Bearer <access_token>
 ```
 
-token 有效期：24 小时（`JWT_EXPIRE_MINUTES=1440`，可在 .env 调整）。
+token 有效期：60 分钟（`JWT_EXPIRE_MINUTES=60`，可在 .env 调整；含 jti 用于 logout 撤销）。
 
 ## 5. 核心接口示例
 
@@ -80,7 +80,7 @@ Content-Type: application/json
   "data": {
     "access_token": "eyJhbGc...",
     "token_type": "bearer",
-    "expires_in": 86400,
+    "expires_in": 3600,
     "user": {
       "id": 1,
       "username": "admin",
@@ -129,30 +129,11 @@ Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "old_password": "<旧密码>",
   "new_password": "<新密码>"
 }
 ```
 
-### Dashboard 统计
-
-```http
-GET /api/v1/stats/overview
-Authorization: Bearer <token>
-```
-
-返回：
-
-```json
-{
-  "code": 0,
-  "data": {
-    "totalUsers": 5,
-    "totalRoles": 3,
-    "todayActive": 2
-  }
-}
-```
+> admin 改密**不**需要传 `old_password`，需登录态 + 管理员权限。
 
 ## 6. Swagger UI
 

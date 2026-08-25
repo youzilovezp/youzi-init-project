@@ -1,6 +1,7 @@
 ---
 name: yz-init-server
-description: 一键初始化后端 API 工程（FastAPI + postgresql + redis + adminer 数据库 UI + 自动维护表结构）。触发命令：「/yz-init-server」。其他两种模式：「/yz-init-admin」（完整前后端）、「/yz-init-ui」（仅前端）。
+description: 一键初始化后端 API 工程（FastAPI + postgresql + redis + adminer 数据库 UI + 自动维护表结构）。触发命令：「/yz-init-server」。
+allowed-tools: Bash(python*scripts/init.py*), Read, Write, Edit, Glob, Grep
 ---
 
 # yz-init-server 技能

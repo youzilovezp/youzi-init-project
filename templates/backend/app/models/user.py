@@ -29,11 +29,16 @@ class User(Base, TimestampMixin):
     phone: Mapped[str | None] = mapped_column(String(20))
 
     role_id: Mapped[int | None] = mapped_column(
-        ForeignKey("roles.id", ondelete="SET NULL")
+        ForeignKey("roles.id", ondelete="SET NULL"), index=True
     )
     role: Mapped[Role | None] = relationship(
         "Role", back_populates="users", lazy="joined"
     )
+
+    @property
+    def role_name(self) -> str | None:
+        """前端 UserOut.role_name 字段——避免模板里手写 IF。"""
+        return self.role.name if self.role is not None else None
 
     def __repr__(self) -> str:
         return f"<User id={self.id} username={self.username}>"

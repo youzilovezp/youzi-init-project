@@ -24,6 +24,17 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     async def get(self, db: AsyncSession, pk: Any) -> ModelType | None:
         return await db.get(self.model, pk)
 
+    async def get_by(self, db: AsyncSession, **filters: Any) -> ModelType | None:
+        """按字段查唯一记录（不存返回 None，多条返回首条）。"""
+        from sqlalchemy import select
+
+        if not filters:
+            return None
+        stmt = select(self.model)
+        for field, value in filters.items():
+            stmt = stmt.where(getattr(self.model, field) == value)
+        return (await db.execute(stmt)).scalars().first()
+
     async def list_all(self, db: AsyncSession) -> list[ModelType]:
         stmt = select(self.model)
         result = await db.execute(stmt)
@@ -36,25 +47,21 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         page_size: int = 20,
         **filters: Any,
     ) -> tuple[list[ModelType], int]:
-        stmt = select(self.model)
-        count_stmt = select(self.model)
-
-        for field, value in filters.items():
-            if value is not None:
-                stmt = stmt.where(getattr(self.model, field) == value)
-                count_stmt = count_stmt.where(getattr(self.model, field) == value)
-
         from sqlalchemy import func
 
+        stmt = select(self.model)
         count_stmt = select(func.count()).select_from(self.model)
+
         for field, value in filters.items():
             if value is not None:
-                count_stmt = count_stmt.where(getattr(self.model, field) == value)
-        total = (await db.execute(count_stmt)).scalar_one()
+                clause = getattr(self.model, field) == value
+                stmt = stmt.where(clause)
+                count_stmt = count_stmt.where(clause)
 
+        total = (await db.execute(count_stmt)).scalar_one()
         stmt = stmt.offset((page - 1) * page_size).limit(page_size)
-        result = await db.execute(stmt)
-        return list(result.scalars().all()), total
+        items = list((await db.execute(stmt)).scalars().all())
+        return items, total
 
     async def create(
         self, db: AsyncSession, obj_in: CreateSchemaType | dict

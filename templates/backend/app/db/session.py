@@ -24,6 +24,8 @@ engine = create_async_engine(
     echo=settings.DB_ECHO,
     pool_size=settings.DB_POOL_SIZE,
     max_overflow=settings.DB_MAX_OVERFLOW,
+    pool_pre_ping=settings.DB_POOL_PRE_PING,  # 防长连接被 PG / NAT 静默断开
+    pool_recycle=settings.DB_POOL_RECYCLE,  # 1 小时回收连接
     future=True,
 )
 

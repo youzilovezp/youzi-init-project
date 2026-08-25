@@ -1,6 +1,7 @@
 ---
 name: yz-init-admin
-description: 一键初始化完整的管理系统（后端 + 前端 + postgresql + redis + adminer 数据库 UI + 自动维护表结构）。触发命令：「/yz-init-admin」。其他两种模式：「/yz-init-server」（后端 + 中间件）、「/yz-init-ui」（仅前端）。
+description: 一键初始化完整的管理系统（后端 + 前端 + postgresql + redis + adminer 数据库 UI + 自动维护表结构）。触发命令：「/yz-init-admin」。
+allowed-tools: Bash(python*scripts/init.py*), Read, Write, Edit, Glob, Grep
 ---
 
 # yz-init-admin 技能
@@ -50,6 +51,9 @@ Claude 会询问项目显示名（可选）和初始管理员密码（可选）�
 - `make db-shell` — 进入 psql 命令行
 - `make reset-admin` — 忘了密码？重置
 - `make backup` / `make restore FILE=...` — 备份恢复
+- `make db-migrate msg="描述"` — 生成迁移文件
+- `make db-upgrade` — 应用所有迁移
+- `make db-downgrade` — 回滚一步
 - `make db-reset` — ⚠️ 清空所有数据
 
 ## 加新业务模块
@@ -58,7 +62,22 @@ Claude 会询问项目显示名（可选）和初始管理员密码（可选）�
 python backend/scripts/add_module.py order --title "订单管理"
 ```
 
-自动生成 model/schema/crud/router/view/api 六个文件，提示用户 4 处手动注册。
+自动生成 model/schema/crud/router/view/api 六个文件。脚本会提示**5 处手动操作**：
+
+1. `backend/app/models/__init__.py` 加 `from app.models.<name> import <Cls>`
+2. `backend/app/api/v1/router.py` 加 `from ... import router as <name>_router` + `api_router.include_router(...)`
+3. `frontend/src/router/index.ts` 加路由记录
+4. `frontend/src/layouts/BasicLayout.vue` 加菜单项
+5. 生成数据库迁移：`make db-migrate msg="add <name>" && make db-upgrade`
+
+带自定义字段（避免后续手动改 4 个文件）：
+
+```bash
+python backend/scripts/add_module.py product --title "商品管理" \
+    --fields "name:str,price:float:0,stock:int:0,status:str:active"
+```
+
+支持类型：`str / text / int / float / bool / datetime`。详细文档看生成项目根目录的 `使用文档.md`。
 
 ## 与其他命令的关系
 

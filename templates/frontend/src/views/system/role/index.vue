@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import * as roleApi from '@/api/role'
 import type { Role } from '@/api/role'
 
@@ -9,7 +9,11 @@ const tableData = ref<Role[]>([])
 
 const dialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
-const formRef = ref()
+const formRef = ref<FormInstance>()
+const formRules: FormRules = {
+  name: [{ required: true, message: '请输入角色名', trigger: 'blur' }],
+  code: [{ required: true, message: '请输入角色编码', trigger: 'blur' }],
+}
 const form = reactive({
   id: 0,
   name: '',
@@ -93,7 +97,7 @@ onMounted(fetchData)
       :title="dialogMode === 'create' ? '新增角色' : '编辑角色'"
       width="500px"
     >
-      <el-form ref="formRef" :model="form" label-width="80px">
+      <el-form ref="formRef" :model="form" :rules="formRules" label-width="80px">
         <el-form-item label="角色名" prop="name">
           <el-input v-model="form.name" />
         </el-form-item>

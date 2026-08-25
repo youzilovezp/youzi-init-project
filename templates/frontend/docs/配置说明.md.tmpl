@@ -56,6 +56,7 @@ pnpm build
 server {
   listen 80;
   server_name your-domain.com;
+  # 把 {{ project_name }} 替换为你的项目名（init.py 已注入到 dist 文件夹名）
   root /var/www/{{ project_name }}/dist;
   index index.html;
 
@@ -72,3 +73,5 @@ server {
   }
 }
 ```
+
+> ⚠️ 生产环境务必加 HTTPS（推荐 certbot 自动签 + 续期）+ 安全 headers（X-Frame-Options / X-Content-Type-Options 等）。

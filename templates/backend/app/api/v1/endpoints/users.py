@@ -69,6 +69,24 @@ async def update_user(
 async def delete_user(db: SessionDep, user: SuperUser, user_id: int):
     if user_id == user.id:
         raise BusinessError(message="不能删除自己")
+    # 修复：之前没检查"最后一名超级管理员"——攻击者 / 误操作删掉最后一个
+    # superuser 后整个系统永久锁死。
+    target = await user_crud.get(db, user_id)
+    if target is None:
+        raise NotFoundError("用户不存在")
+    if target.is_superuser:
+        from sqlalchemy import func, select
+        from app.models.user import User as UserModel
+
+        cnt = (
+            await db.execute(
+                select(func.count())
+                .select_from(UserModel)
+                .where(UserModel.is_superuser.is_(True))
+            )
+        ).scalar_one()
+        if cnt <= 1:
+            raise BusinessError(message="不能删除最后一个超级管理员")
     if not await user_crud.delete(db, user_id):
         raise NotFoundError("用户不存在")
     return ResponseModel(message="已删除")
@@ -88,8 +106,5 @@ async def admin_change_password(
     target = await user_crud.get(db, user_id)
     if target is None:
         raise NotFoundError("用户不存在")
-    try:
-        await user_crud.update_password(db, target, payload)
-    except ValueError as exc:
-        raise BusinessError(message=str(exc)) from exc
+    await user_crud.set_password(db, target, payload.new_password)
     return ResponseModel(message="密码已更新")

@@ -29,6 +29,7 @@ async def test_login_wrong_password(client: AsyncClient):
         "/api/v1/auth/login",
         json={"username": "nobody", "password": "wrong"},
     )
-    assert resp.status_code == 200
+    # AuthError 被异常处理器转成 HTTP 401
+    assert resp.status_code == 401
     data = resp.json()
     assert data["code"] != 0

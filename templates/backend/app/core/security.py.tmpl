@@ -1,0 +1,103 @@
+"""
+安全相关：JWT（pyjwt）+ 密码哈希（bcrypt）+ Redis 黑名单。
+
+从 python-jose 迁移到 PyJWT（pyjwt 维护更活跃，规避 CVE-2024-33663 等已知漏洞）。
+"""
+
+import secrets
+from datetime import datetime, timedelta, timezone
+from typing import Any
+
+import bcrypt
+import jwt
+
+from app.core.config import settings
+{% if enable_redis %}
+from app.db.redis_client import redis_client
+{% endif %}
+
+
+def hash_password(plain: str) -> str:
+    salt = bcrypt.gensalt(rounds=12)
+    return bcrypt.hashpw(plain.encode("utf-8"), salt).decode("utf-8")
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    try:
+        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    except (ValueError, TypeError):
+        return False
+
+
+def create_access_token(
+    subject: str | int,
+    expires_delta: timedelta | None = None,
+    extra: dict[str, Any] | None = None,
+) -> str:
+    """生成带 jti 的 JWT（jti 用于黑名单撤销）。"""
+    expire = datetime.now(timezone.utc) + (
+        expires_delta or timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
+    )
+    payload: dict[str, Any] = {
+        "sub": str(subject),
+        "exp": expire,
+        "iat": datetime.now(timezone.utc),
+        "jti": secrets.token_hex(16),
+    }
+    if extra:
+        payload.update(extra)
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+
+def decode_token(token: str) -> dict[str, Any]:
+    try:
+        return jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
+        )
+    except jwt.PyJWTError as exc:
+        raise ValueError(f"无效的 token: {exc}") from exc
+
+
+{% if enable_redis %}
+async def blacklist_token(token: str) -> bool:
+    """把 token 的 jti 写进 Redis 黑名单（TTL = 剩余 exp）。
+
+    返回 True=真正撤销成功；False=撤销失败（Redis 不可用）。生产必须 ENABLE_REDIS=true。
+    """
+    try:
+        payload = decode_token(token)
+    except ValueError:
+        return False
+    jti = payload.get("jti", "")
+    exp = payload.get("exp")
+    if not jti or not exp:
+        return False
+    ttl = max(int(exp - datetime.now(timezone.utc).timestamp()), 1)
+    try:
+        await redis_client.setex(f"jwt:blacklist:{jti}", ttl, "1")
+        return True
+    except Exception:
+        return False
+
+
+async def is_token_blacklisted(jti: str) -> bool:
+    """检查 jti 是否在黑名单。"""
+    if not jti:
+        return False
+    try:
+        return await redis_client.exists(f"jwt:blacklist:{jti}")
+    except Exception:
+        # Redis 挂时降级为放行（fail-open），由监控告警兜底
+        return False
+{% else %}
+async def blacklist_token(token: str) -> bool:
+    """无 Redis：返回 jti 让 logout 端点能报告，但实际不撤销。生产必须 ENABLE_REDIS=true。"""
+    try:
+        return bool(decode_token(token).get("jti", ""))
+    except ValueError:
+        return False
+
+
+async def is_token_blacklisted(jti: str) -> bool:
+    return False
+{% endif %}

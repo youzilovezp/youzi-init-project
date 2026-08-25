@@ -1,0 +1,19 @@
+# 防止 .env（含真实密码）进镜像；防止本地缓存 / git 历史进镜像
+.env
+.env.*
+.git
+.gitignore
+.venv
+venv
+__pycache__
+.pytest_cache
+.mypy_cache
+.ruff_cache
+*.egg-info
+dist
+build
+tests
+docs
+*.md
+.vscode
+.DS_Store

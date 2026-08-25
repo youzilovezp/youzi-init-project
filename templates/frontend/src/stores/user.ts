@@ -3,8 +3,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import * as authApi from '@/api/auth'
 import type { LoginPayload, UserInfo } from '@/api/types'
-
-const TOKEN_KEY = import.meta.env.VITE_TOKEN_KEY || 'access_token'
+import { TOKEN_KEY } from '@/config'
 
 export const useUserStore = defineStore('user', () => {
   const token = ref<string>(localStorage.getItem(TOKEN_KEY) || '')

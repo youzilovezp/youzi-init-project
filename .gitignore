@@ -43,3 +43,4 @@ logs/
 .env.local
 .claude
 .code-review-graph
+.idea

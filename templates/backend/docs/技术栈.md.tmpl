@@ -25,22 +25,13 @@
 
 | 组件 | 用途 |
 |---|---|
-| python-jose | JWT 编解码 |
+| PyJWT | JWT 编解码（含 jti，用于 logout 黑名单） |
 | bcrypt | 密码哈希 |
 
 ## 中间件（按启用情况）
 
 {% if enable_redis -%}
-- **Redis**：缓存、限流、Session
-{% endif -%}
-{% if enable_rabbitmq -%}
-- **RabbitMQ**：消息队列
-{% endif -%}
-{% if enable_celery -%}
-- **Celery + Flower**：分布式异步任务 + 监控
-{% endif -%}
-{% if enable_minio -%}
-- **MinIO**：S3 兼容对象存储
+- **Redis**：缓存、限流、JWT 黑名单
 {% endif -%}
 - **adminer**：数据库 UI（默认开启）
 

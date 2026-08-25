@@ -75,20 +75,31 @@ class RedisClient:
         return self._client
 
     # ---------- 常用快捷方法 ----------
+    async def ping(self) -> bool:
+        """K8s readiness 探针用：检查 Redis 是否在线。"""
+        result = await self.client.ping()  # type: ignore[union-attr]
+        return bool(result)
+
     async def get(self, key: str) -> str | None:
         return await self.client.get(key)
 
     async def set(self, key: str, value: str, ex: int | None = None) -> None:
         await self.client.set(key, value, ex=ex)
 
+    async def setex(self, key: str, ttl: int, value: str) -> None:
+        await self.client.setex(key, ttl, value)
+
     async def delete(self, *keys: str) -> int:
         return await self.client.delete(*keys)
 
     async def exists(self, key: str) -> bool:
-        return bool(await self.client.exists(key))
+        """检查 key 是否存在（包装 await，避免调用方 await bool）。"""
+        result = await self.client.exists(key)
+        return bool(result)
 
     async def expire(self, key: str, seconds: int) -> bool:
-        return bool(await self.client.expire(key, seconds))
+        result = await self.client.expire(key, seconds)
+        return bool(result)
 
 
 redis_client = RedisClient()

@@ -44,6 +44,12 @@ async def main() -> int:
     )
     args = parser.parse_args()
 
+    # 防呆：--password 显式传空串会变成空密码。空密码过 bcrypt 仍然能写入，
+    # 但用户登录会 401。直接拒绝。
+    if args.password is not None and not args.password.strip():
+        print("❌ --password 不能为空字符串（不传则随机生成 16 位）", file=sys.stderr)
+        return 2
+
     new_password = args.password or secrets.token_urlsafe(16)
 
     async with async_session() as session:

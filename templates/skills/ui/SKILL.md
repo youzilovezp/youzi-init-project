@@ -1,6 +1,7 @@
 ---
 name: yz-init-ui
-description: 一键初始化前端工程（Vue 3 + TS + Vite + Element Plus，支持本地调试）。触发命令：「/yz-init-ui」。其他两种模式：「/yz-init-admin」（完整前后端）、「/yz-init-server」（后端 + 中间件）。
+description: 一键初始化前端工程（Vue 3 + TS + Vite + Element Plus，支持本地调试）。触发命令：「/yz-init-ui」。
+allowed-tools: Bash(python*scripts/init.py*), Read, Write, Edit, Glob, Grep
 ---
 
 # yz-init-ui 技能

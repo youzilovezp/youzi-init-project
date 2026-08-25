@@ -45,7 +45,8 @@ async function handleLogout() {
       type: 'warning',
     })
     await userStore.logout()
-    router.push('/login')
+    // replace 而非 push：避免在历史栈留一条已退出的回边
+    router.replace('/login')
   } catch {
     /* cancel */
   }
@@ -57,8 +58,7 @@ async function handleLogout() {
     <!-- 侧边栏 -->
     <el-aside :width="appStore.sidebarCollapsed ? '64px' : '220px'" class="layout-aside">
       <div class="logo">
-        <img v-if="!appStore.sidebarCollapsed" src="/youzi-logo.svg" alt="logo" class="logo-img" />
-        <img v-else src="/youzi-logo.svg" alt="logo" class="logo-img-small" />
+        <img src="/youzi-logo.svg" alt="logo" :class="appStore.sidebarCollapsed ? 'logo-img-collapsed' : 'logo-img'" />
         <span v-if="!appStore.sidebarCollapsed" class="logo-text">{{ APP_TITLE }}</span>
       </div>
       <el-menu
@@ -153,13 +153,8 @@ async function handleLogout() {
     overflow: hidden;
   }
 
-  .logo-img {
-    height: 36px;
-    width: 36px;
-    flex-shrink: 0;
-  }
-
-  .logo-img-small {
+  .logo-img,
+  .logo-img-collapsed {
     height: 36px;
     width: 36px;
     flex-shrink: 0;

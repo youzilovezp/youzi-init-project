@@ -2,6 +2,7 @@
 
 from sqlalchemy import select
 
+from app.core.exceptions import AuthError
 from app.core.security import hash_password, verify_password
 from app.crud.base import CRUDBase
 from app.models.user import User
@@ -17,9 +18,14 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         stmt = select(User).where(User.email == email)
         return (await db.execute(stmt)).scalar_one_or_none()
 
-    async def create(self, db, obj_in: UserCreate) -> User:
-        data = obj_in.model_dump()
-        password = data.pop("password")
+    async def create(self, db, obj_in: UserCreate | dict) -> User:
+        if isinstance(obj_in, dict):
+            data = dict(obj_in)
+        else:
+            data = obj_in.model_dump()
+        password = data.pop("password", None)
+        if password is None:
+            raise ValueError("UserCreate 必须提供 password")
         db_obj = User(**data, password_hash=hash_password(password))
         db.add(db_obj)
         await db.commit()
@@ -30,8 +36,16 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         self, db, user: User, payload: UserPasswordUpdate
     ) -> User:
         if not verify_password(payload.old_password, user.password_hash):
-            raise ValueError("旧密码错误")
+            raise AuthError("旧密码错误")
         user.password_hash = hash_password(payload.new_password)
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        return user
+
+    async def set_password(self, db, user: User, new_password: str) -> User:
+        """管理员直接改密（不校验旧密码）。"""
+        user.password_hash = hash_password(new_password)
         db.add(user)
         await db.commit()
         await db.refresh(user)

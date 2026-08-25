@@ -25,7 +25,6 @@ from app.db.session import async_session, engine
 from app.models.base_class import Base  # noqa: F401  触发模型注册
 from app.models.user import User
 from app.models.role import Role
-from app.models.menu import Menu  # noqa: F401  触发模型注册
 
 
 # ---------- Async 表操作 ----------
@@ -153,23 +152,25 @@ DEMO_USERS = [
 async def create_initial_data() -> None:
     """插入种子数据：3 个角色 + 1 管理员 + 3 demo 用户。
 
-    - admin / 随机密码（启动时控制台打印）
-    - manager / Demo@123（让非技术用户有第二个账号体验角色差异）
-    - alice, bob / Demo@123（普通员工 demo）
+    生产环境（APP_ENV=prod）**只创建 admin + 3 个角色**，不创建 demo 用户。
+    这样可以避免 Demo@123 这种公开凭据进入生产 DB。
 
-    登录界面默认看到 admin。demo 账号仅在 adminer 里或用户管理页可见。
+    - admin / 随机密码（启动时控制台打印）
+    - manager / alice / bob 仅 dev 环境创建（dev 默认密码 Demo@123）
     """
     from app.models.user import User  # 避免循环
 
     async with async_session() as session:
         # ---------- 角色 ----------
+        # 不指定 id，让 sequence 自增——避免与已有数据 PK 冲突
         seed_roles = [
-            Role(id=1, name="超级管理员", code="admin", remark="系统内置"),
-            Role(id=2, name="部门经理", code="manager", remark="demo 数据"),
-            Role(id=3, name="普通员工", code="employee", remark="demo 数据"),
+            Role(name="超级管理员", code="admin", remark="系统内置"),
+            Role(name="部门经理", code="manager", remark="demo 数据"),
+            Role(name="普通员工", code="employee", remark="demo 数据"),
         ]
         for role in seed_roles:
-            existing = await session.get(Role, role.id)
+            stmt = select(Role).where(Role.code == role.code)
+            existing = (await session.execute(stmt)).scalar_one_or_none()
             if existing is None:
                 session.add(role)
         await session.commit()
@@ -193,52 +194,58 @@ async def create_initial_data() -> None:
             logger.info(
                 f"✅ 默认管理员已创建：{settings.INITIAL_ADMIN_USERNAME}"
             )
-            logger.warning(
-                f"🔑 默认管理员密码：{settings.INITIAL_ADMIN_PASSWORD}"
-                "（生产环境请立即修改！）"
-            )
+            if settings.APP_ENV != "prod":
+                logger.warning(
+                    f"🔑 默认管理员密码：{settings.INITIAL_ADMIN_PASSWORD}"
+                    "（生产环境请立即修改！）"
+                )
 
-        # ---------- Demo 用户 ----------
-        for username, nickname, email, role_code, plain_pwd in DEMO_USERS:
-            stmt = select(User).where(User.username == username)
-            result = await session.execute(stmt)
-            if result.scalar_one_or_none() is not None:
-                continue
-            # 取角色 id
-            role_id = {"manager": 2, "employee": 3}.get(role_code, 1)
-            user = User(
-                username=username,
-                nickname=nickname,
-                email=email,
-                password_hash=hash_password(plain_pwd),
-                is_active=True,
-                is_superuser=False,
-                role_id=role_id,
+        # ---------- Demo 用户（仅 dev / test 创建，生产跳过）----------
+        if settings.APP_ENV != "prod":
+            for username, nickname, email, role_code, plain_pwd in DEMO_USERS:
+                stmt = select(User).where(User.username == username)
+                result = await session.execute(stmt)
+                if result.scalar_one_or_none() is not None:
+                    continue
+                role_id = {"manager": 2, "employee": 3}.get(role_code, 1)
+                user = User(
+                    username=username,
+                    nickname=nickname,
+                    email=email,
+                    password_hash=hash_password(plain_pwd),
+                    is_active=True,
+                    is_superuser=False,
+                    role_id=role_id,
+                )
+                session.add(user)
+            await session.commit()
+            logger.info(
+                "✅ demo 用户已创建：manager / alice / bob（仅 dev 环境；生产跳过）"
             )
-            session.add(user)
-        await session.commit()
-        logger.info(
-            "✅ demo 用户已创建：manager / alice / bob（密码均为 Demo@123）"
-        )
-        logger.warning(
-                f"🔑 默认管理员密码：{settings.INITIAL_ADMIN_PASSWORD}"
-                "（生产环境请立即修改！）"
-            )
+        else:
+            logger.info("⏭️  生产环境（APP_ENV=prod）跳过 demo 用户创建")
 
 
 # ---------- 主入口 ----------
 async def init_db() -> None:
     """启动时调用：根据数据库状态自动决定如何维护。
 
-    关键：完成后**主动释放**所有连接，否则 uvicorn 的 lifespan 永远不会
-    看到 yield 完成（uvicorn 一直返回 502，application 看起来 hang）。
+    注意：不在这里 dispose()——会让连接池被无意义重建（pool_pre_ping/rec
+    ycle 配置失效）。lifespan 结束后引擎自然释放。
     """
     auto_init = getattr(settings, "AUTO_INIT_DB", True)
     auto_seed = getattr(settings, "AUTO_SEED_DATA", True)
 
     if not auto_init and not auto_seed:
         logger.info("⏭️  数据库自动维护已全部关闭，跳过")
-        await engine.dispose()
+        return
+
+    # 防御性检查：AUTO_SEED_DATA=true 但 AUTO_INIT_DB=false 时，roles/users 表可能不存在。
+    if auto_seed and not auto_init:
+        logger.warning(
+            "⚠️ AUTO_SEED_DATA=true 但 AUTO_INIT_DB=false，表结构可能不存在，"
+            "跳过种子写入。建议同时开启 AUTO_INIT_DB=true。"
+        )
         return
 
     if auto_init:
@@ -249,12 +256,15 @@ async def init_db() -> None:
             is_first_run = True
 
         if is_first_run:
-            logger.info("📦 首次启动：create_all + alembic stamp head")
+            # 关键：首次启动只 create_all，**不自动 stamp head**。
+            # 自动 stamp 会让后续 `make db-migrate msg="add xxx"` 生成空迁移
+            # （autogenerate 看到 schema 已存在 + 版本已是 head）。
+            # 改为：用户用 `make db-migrate msg="init"` 显式建首版迁移,后续正常。
+            logger.info("📦 首次启动：create_all（不 stamp alembic，请手动 `make db-migrate msg=init` 初始化迁移）")
             try:
                 await create_tables()
             except Exception as exc:
                 logger.error(f"❌ create_all 失败：{exc}")
-            await _alembic_cmd("stamp", "head", success_msg="✅ 已 stamp head")
         else:
             logger.info("🔄 检测到 alembic_version，执行 upgrade head")
             await _alembic_cmd("upgrade", "head", success_msg="✅ Alembic 迁移完成")
@@ -264,6 +274,3 @@ async def init_db() -> None:
             await create_initial_data()
         except Exception as exc:
             logger.warning(f"⚠️ 种子数据写入失败：{exc}")
-
-    # 释放所有连接——uvicorn lifespan 才会感知到 yield 完成
-    await engine.dispose()

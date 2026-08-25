@@ -3,16 +3,12 @@
  *
  * - 请求拦截：自动注入 token
  * - 响应拦截：统一处理 code、错误提示
- * - 错误处理：401 自动跳登录页
+ * - 错误处理：401 自动跳登录页（仅"会话过期"场景；登录失败走正常 ElMessage 错误）
  */
 import axios, { AxiosError, type AxiosRequestConfig, type InternalAxiosRequestConfig } from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { ApiResponse } from './types'
-
-export interface RequestOptions extends AxiosRequestConfig {
-  /** 静默模式：不显示全局错误提示 */
-  silent?: boolean
-}
+import { TOKEN_KEY } from '@/config'
 
 // 让 axios 的 get/post/put/delete 都接受 silent 字段
 declare module 'axios' {
@@ -21,29 +17,43 @@ declare module 'axios' {
   }
 }
 
-const baseURL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
-const TOKEN_KEY = import.meta.env.VITE_TOKEN_KEY || 'access_token'
+export interface RequestOptions extends AxiosRequestConfig {
+  /** 静默模式：不显示全局错误提示 */
+  silent?: boolean
+}
 
-// 单例化 401 弹窗，避免并发请求触发多个 ElMessageBox 堆叠
+const baseURL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+
+// 401 弹窗单例化：避免并发请求触发多个 ElMessageBox 堆叠
 let authDialogShown = false
-function showUnauthorizedDialog() {
+
+function showSessionExpiredDialog() {
   if (authDialogShown) return
   authDialogShown = true
-  ElMessageBox.confirm('登录已过期，请重新登录', '提示', {
-    confirmButtonText: '重新登录',
-    cancelButtonText: '取消',
-    type: 'warning',
-  })
-    .then(() => {
-      localStorage.removeItem(TOKEN_KEY)
-      window.location.href = '/login'
+  // 用户已确认退出前**不**清 token —— 让当前页面的请求还能跑完，否则会陷入"清掉 → 再 401 → 再弹"的死循环
+  try {
+    ElMessageBox.confirm('登录已过期，请重新登录', '提示', {
+      confirmButtonText: '重新登录',
+      cancelButtonText: '取消',
+      type: 'warning',
     })
-    .catch(() => {
-      // 用户取消，重置标记以便下次还能弹
-    })
-    .finally(() => {
-      authDialogShown = false
-    })
+      .then(() => {
+        localStorage.removeItem(TOKEN_KEY)
+        window.location.href = '/login'
+      })
+      .catch(() => {
+        // 用户点取消：保持当前页 token 不动，等用户主动操作；
+        // 路由守卫会拦住后续访问受保护页。
+      })
+      .finally(() => {
+        authDialogShown = false
+      })
+  } catch {
+    // 组件库未就绪等异常 → 直接走清 token + 跳登录
+    authDialogShown = false
+    localStorage.removeItem(TOKEN_KEY)
+    window.location.href = '/login'
+  }
 }
 
 const request = axios.create({
@@ -69,28 +79,38 @@ request.interceptors.request.use(
 // ---------- 响应拦截 ----------
 request.interceptors.response.use(
   (response) => {
-    const data = response.data as ApiResponse
-    if (data && typeof data === 'object' && 'code' in data) {
-      if (data.code === 0) {
-        return data.data
-      }
-      // 静默模式（silent=true）下不弹全局错误
-      const silent = (response.config as RequestOptions).silent
-      if (!silent) {
-        ElMessage.error(data.message || '请求失败')
-      }
-      return Promise.reject(new Error(data.message || '请求失败'))
+    const data = response.data
+    // data 为 null/undefined 时直接返回原响应（避免 typeof null 抛错）
+    if (data === null || data === undefined) return response.data
+    if (typeof data !== 'object' || !('code' in data)) return response.data
+
+    const wrapped = data as ApiResponse
+    if (wrapped.code === 0) {
+      return wrapped.data
     }
-    return response.data
+    // 业务错误：静默模式（silent=true）下不弹全局错误
+    const silent = (response.config as RequestOptions).silent
+    if (!silent) {
+      ElMessage.error(wrapped.message || '请求失败')
+    }
+    return Promise.reject(new Error(wrapped.message || '请求失败'))
   },
   async (error: AxiosError<ApiResponse>) => {
     const silent = (error.config as RequestOptions | undefined)?.silent
     const status = error.response?.status
     const message = error.response?.data?.message || error.message || '网络异常'
+    const url = error.config?.url || ''
 
+    // 401 处理：登录失败（/auth/login 命中） vs 会话过期（其他接口）分开
     if (status === 401) {
-      showUnauthorizedDialog()
-      return Promise.reject(new Error('未授权'))
+      if (url.includes('/auth/login')) {
+        // 登录失败：业务错误，直接 toast 让用户知道密码错
+        if (!silent) ElMessage.error(message || '登录失败')
+        return Promise.reject(error)
+      }
+      // 会话过期：弹窗，让用户选择
+      showSessionExpiredDialog()
+      return Promise.reject(error)
     }
 
     if (!silent) {
@@ -99,10 +119,5 @@ request.interceptors.response.use(
     return Promise.reject(error)
   }
 )
-
-export interface RequestOptionsExt extends AxiosRequestConfig {
-  /** 静默模式：不显示全局错误提示 */
-  silent?: boolean
-}
 
 export default request
