@@ -15,7 +15,6 @@
 
 import argparse
 import asyncio
-import secrets
 import sys
 from pathlib import Path
 
@@ -40,17 +39,18 @@ async def main() -> int:
     parser.add_argument(
         "--password",
         default=None,
-        help="新密码（不传则随机生成 16 位）",
+        help='新密码（不传则重置为 "admin"）',
     )
     args = parser.parse_args()
 
     # 防呆：--password 显式传空串会变成空密码。空密码过 bcrypt 仍然能写入，
     # 但用户登录会 401。直接拒绝。
     if args.password is not None and not args.password.strip():
-        print("❌ --password 不能为空字符串（不传则随机生成 16 位）", file=sys.stderr)
+        print('❌ --password 不能为空字符串（不传则重置为 "admin"）', file=sys.stderr)
         return 2
 
-    new_password = args.password or secrets.token_urlsafe(16)
+    # 默认重置为 "admin"：本地脚手架场景下保持简单，生产务必显式 --password 传入强密码
+    new_password = args.password or "admin"
 
     async with async_session() as session:
         stmt = select(User).where(User.username == args.username)

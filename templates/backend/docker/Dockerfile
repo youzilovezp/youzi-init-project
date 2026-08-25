@@ -13,8 +13,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# 先只 copy pyproject 利用层缓存
-COPY pyproject.toml ./
+# 一起 copy pyproject + readme：hatchling 构建 wheel 时会读取 readme，缺文件直接报错
+# 这两个文件基本不变，layer cache 仍然有效（app 代码在第二阶段 COPY）
+COPY pyproject.toml 后端说明.md ./
 RUN pip install --upgrade pip && \
     pip install --prefix=/install .
 

@@ -2,7 +2,7 @@
 
 <img src="assets/youzi-logo.svg?v=3" width="110" alt="youzi logo"/>
 
-# 🍊 柚子脚手架 · 一站式项目初始化工具
+# 🍊 youzi-init-project · 一站式项目初始化工具
 
 **`/yz-init-admin <name>` → 完整前后端 + 中间件 + 数据库自动维护 → 开箱即跑**
 

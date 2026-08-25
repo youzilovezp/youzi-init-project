@@ -327,7 +327,8 @@ def main() -> int:
         )
     args.admin_user = DEFAULT_ADMIN_USER
     if args.admin_pass is None:
-        args.admin_pass = secrets.token_urlsafe(16)
+        # 默认用 "admin"：开发脚手架场景下省事，生产务必用 --admin-pass 显式指定
+        args.admin_pass = "admin"
 
     context = build_context(args)
 
