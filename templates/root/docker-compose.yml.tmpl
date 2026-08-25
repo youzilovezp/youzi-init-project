@@ -1,6 +1,7 @@
 # 一键启动 {{ project_title }} 所有依赖（含 backend）
-# 用法：docker compose up -d
-# 配套 UI：adminer（端口 8080，看数据库）
+# 用法（admin 模式 .env 在 backend/，必须显式传 --env-file，否则自定义端口不生效）：
+#   docker compose --env-file {% if only == 'admin' %}./backend/.env{% else %}.env{% endif %} up -d
+# 配套 UI：adminer（端口 8080，看数据库；也可只起单个服务：up -d adminer）
 
 services:
   backend:
@@ -63,10 +64,10 @@ services:
       - "8080:8080"
     environment:
       ADMINER_DEFAULT_SERVER: {{ project_name }}-postgres
+      # 复用本机 PG 时：adminer 页面 Server 填 host.docker.internal（容器访问宿主机）
       ADMINER_DESIGN: pepa-linha-dark
-    depends_on:
-      postgres:
-        condition: service_healthy
+    # 不 depends_on postgres——复用本机 PG 时 up -d adminer 不能强拉容器（5432 端口冲突）
+    # adminer 是独立 UI，运行时自己填连接信息，无需等 postgres 就绪
 
 {% if enable_redis %}
   redis:

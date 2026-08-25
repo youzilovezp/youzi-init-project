@@ -1,7 +1,6 @@
 """用户相关 schema。"""
 
 import unicodedata
-
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
@@ -44,6 +43,14 @@ class UserBase(BaseModel):
     email: EmailStr | None = None
     phone: str | None = Field(default=None, max_length=20)
 
+    @field_validator("nickname", "email", "phone", mode="before")
+    @classmethod
+    def _empty_to_none(cls, v):
+        """空字符串 → None：前端表单未填的可选字段序列化成 ''，EmailStr 不接受 ''。"""
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
+
     @field_validator("username", "nickname", "email", "phone")
     @classmethod
     def _norm(cls, v):
@@ -73,6 +80,13 @@ class UserUpdate(BaseModel):
     avatar: str | None = None
     role_id: int | None = None
     is_active: bool | None = None
+
+    @field_validator("nickname", "email", "phone", "avatar", mode="before")
+    @classmethod
+    def _empty_to_none(cls, v):
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
 
     @field_validator("nickname", "email", "phone")
     @classmethod

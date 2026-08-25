@@ -65,8 +65,10 @@ class RedisClient:
         except Exception as exc:  # noqa: BLE001
             from loguru import logger
 
+            # 日志只打 host:port，不打 REDIS_URL（含明文密码，会进日志文件）
             logger.warning(
-                f"⚠️ Redis 暂时不可达 ({settings.REDIS_URL}): {exc}；"
+                f"⚠️ Redis 暂时不可达 ({settings.REDIS_HOST}:{settings.REDIS_PORT}): {exc}；"
+                "请检查 .env 的 REDIS_PASSWORD 是否与本机 Redis 实际密码一致（本机无密码则留空）；"
                 "应用继续启动，业务调用时会感知"
             )
 
@@ -83,8 +85,10 @@ class RedisClient:
 
         重要：不能用 async close——close 内部 await 走的是旧 loop，新 loop 调用会抛
         'attached to a different loop'。直接清 _client 引用即可，下次业务调用会重连。
+        _connect_lock 同样绑定旧 loop（3.10+ Lock 惰性绑定），必须一并重建。
         """
         self._client = None
+        self._connect_lock = asyncio.Lock()
 
     @property
     def client(self) -> redis.Redis:

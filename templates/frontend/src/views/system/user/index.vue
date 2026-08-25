@@ -130,7 +130,8 @@ async function handleDelete(row: UserInfo) {
   const warning = row.is_superuser
     ? `确定要删除超级管理员「${row.username}」吗？删除后系统将无法恢复。`
     : `确定删除用户「${row.username}」吗？`
-  await ElMessageBox.confirm(warning, '⚠️ 危险操作', { type: 'warning' })
+  const ok = await ElMessageBox.confirm(warning, '⚠️ 危险操作', { type: 'warning' }).catch(() => false)
+  if (ok === false) return
   await userApi.deleteUser(row.id)
   ElMessage.success('已删除')
   fetchData()
@@ -157,7 +158,7 @@ onMounted(() => {
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="fetchData">查询</el-button>
+          <el-button type="primary" @click="() => { query.page = 1; fetchData() }">查询</el-button>
           <el-button @click="() => { query.username = ''; query.is_active = undefined; fetchData() }">重置</el-button>
           <el-button type="success" @click="openCreate">新增用户</el-button>
         </el-form-item>
@@ -190,14 +191,14 @@ onMounted(() => {
 
       <!-- 分页 -->
       <el-pagination
-        v-model:current-page="query.page"
-        v-model:page-size="query.page_size"
+        :current-page="query.page"
+        :page-size="query.page_size"
         :total="total"
         layout="total, sizes, prev, pager, next, jumper"
         :page-sizes="[10, 20, 50, 100]"
         style="margin-top: 16px; text-align: right"
-        @current-change="fetchData"
-        @size-change="fetchData"
+        @current-change="(p: number) => { query.page = p; fetchData() }"
+        @size-change="(s: number) => { query.page_size = s; query.page = 1; fetchData() }"
       />
     </el-card>
 

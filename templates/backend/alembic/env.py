@@ -2,15 +2,14 @@
 
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import engine_from_config, pool
-
-from app.core.config import settings
-from app.db.base_class import Base
 
 # 导入整个 models 包（自动触发 __init__.py 中的 import 链）
 # 比显式列举 User, Role 更鲁棒——add_module 新增模型后只需更新 __init__.py 即可
 import app.models  # noqa: F401  # type: ignore[unused-import]  # side-effect import
+from alembic import context
+from app.core.config import settings
+from app.db.base_class import Base
 
 _ = app.models  # 防止 pyright 静态分析看不到 import 副作用
 

@@ -421,9 +421,27 @@ do_status() {
     # 环境检查
     echo "  环境检查："
     if command -v python3 >/dev/null 2>&1; then
-        echo "    ✅ python3: $(python3 --version 2>&1)"
+        py_ver=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+        py_ok=$(python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)')
+        if [ $? -eq 0 ] 2>/dev/null || python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)'; then
+            echo "    ✅ python3: $(python3 --version 2>&1)"
+        else
+            echo "    ⚠️  python3: ${py_ver} 版本过低（需要 3.11+，python.org 下载新版）"
+        fi
     else
         echo "    ⚠️  python3: 未安装（必须）"
+    fi
+    if command -v node >/dev/null 2>&1; then
+        echo "    ✅ node: $(node --version 2>&1)"
+    else
+        echo "    ⚠️  node: 未安装（前端必需，nodejs.org 下载 LTS）"
+    fi
+    if command -v pnpm >/dev/null 2>&1; then
+        echo "    ✅ pnpm: $(pnpm --version 2>&1)"
+    elif command -v npm >/dev/null 2>&1; then
+        echo "    ℹ️  pnpm: 未安装（将回退用 npm，或 npm install -g pnpm 提速）"
+    else
+        echo "    ⚠️  pnpm/npm: 都未安装（前端必需）"
     fi
     if command -v git >/dev/null 2>&1; then
         echo "    ✅ git: $(git --version 2>&1)"
@@ -436,7 +454,11 @@ do_status() {
         echo "    ⚠️  jinja2: 未安装（scripts/init.py 需要；pip install jinja2）"
     fi
     if command -v docker >/dev/null 2>&1; then
-        echo "    ✅ docker: $(docker --version 2>&1)（默认中间件 PostgreSQL 用；本机已装 PG 则不需要）"
+        if docker info >/dev/null 2>&1; then
+            echo "    ✅ docker: $(docker --version 2>&1)（daemon 运行中）"
+        else
+            echo "    ⚠️  docker: 已安装但 daemon 未启动——打开 Docker Desktop 等图标变绿再试"
+        fi
     else
         echo "    ⚠️  docker: 未安装（make start 起 PostgreSQL 需要；本机已装 PG 可忽略）"
     fi

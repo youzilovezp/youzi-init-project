@@ -5,12 +5,8 @@
  * 任何 //evil.com / javascript: 等都会被拒到 /dashboard。
  */
 import { describe, it, expect } from 'vitest'
-
-// 提取 onSubmit 里的纯 redirect 逻辑（不依赖 Vue runtime）
-function sanitizeRedirect(raw: string | undefined): string {
-  if (raw && raw.startsWith('/') && !raw.startsWith('//')) return raw
-  return '/dashboard'
-}
+// 测的是生产代码（src/utils/redirect.ts）——login 页跳转前必须经过它
+import { sanitizeRedirect } from '@/utils/redirect'
 
 describe('login redirect sanitization', () => {
   it('accepts simple relative path', () => {

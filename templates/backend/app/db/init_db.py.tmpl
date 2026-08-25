@@ -10,8 +10,8 @@
 | false  | true   | 跳过（表不存在，跳过种子） | 跳过 |
 | false  | false  | 跳过 | 跳过 |
 
-首次启动**不自动 stamp head**：避免后续 `make db-migrate msg="add xxx"` 生成空迁移。
-用户首次启动后需手动跑 `make db-migrate msg="init" && make db-upgrade` 建基线。
+首次启动 create_all 后 stamp 到预置基线 `0001_baseline`（versions/ 内置）；后续 add_module 的
+`make db-migrate MSG="add xxx"` 正常生成增量迁移。
 
 任何步骤失败只记录警告，不阻塞启动。
 
@@ -38,6 +38,20 @@ async def create_tables() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("✅ 数据库表已通过 metadata.create_all 创建")
+
+
+async def _tables_missing_but_versioned() -> bool:
+    """alembic_version 存在但 users 表不存在（空库被 upgrade 过 / 表被误删）。"""
+
+    def _check(sync_conn) -> bool:
+        inspector = inspect(sync_conn)
+        return inspector.has_table("alembic_version") and not inspector.has_table("users")
+
+    try:
+        async with engine.connect() as conn:
+            return await conn.run_sync(_check)
+    except Exception:
+        return False
 
 
 async def has_alembic_version_table() -> bool:
@@ -112,14 +126,15 @@ def _diagnose_alembic_error(output: str) -> str:
     text = output.lower()
     if "password authentication failed" in text:
         return (
-            "❌ 数据库密码认证失败。两种常见原因：\n"
-            "   A. 复用本机 PostgreSQL：该实例还没有 .env 里的用户/密码/库。\n"
-            "      解决：在本机 PG 里创建（或改 .env 指向 Docker 起独立实例）：\n"
+            "❌ 数据库密码认证失败。按顺序试：\n"
+            "   【首选】改 .env 的 POSTGRES_PORT 为空闲端口（如 15432）→ make start\n"
+            "          （Docker 起本项目独立 PG，全自动建用户/库，最省事）\n"
+            "   或：在本机 PG 里创建 .env 对应的用户/库（需会用 psql）：\n"
             "        create user \"<POSTGRES_USER>\" with password '<POSTGRES_PASSWORD>';\n"
             "        create database \"<POSTGRES_DB>\" owner \"<POSTGRES_USER>\";\n"
-            "   B. Docker 卷是旧密码时代初始化的（项目删了重新生成，密码换了，卷没删）：\n"
-            "      解决：make stop && docker compose down --volumes && make start\n"
-            "      （⚠️ 会清空该卷里的数据；旧数据在 backups/ 有备份则可恢复）"
+            "   或：项目重新生成后旧 Docker 卷密码不匹配 →\n"
+            "        make stop && docker compose down --volumes && make start\n"
+            "        （⚠️ 清空该卷数据；backups/ 有备份可恢复）"
         )
     if (
         "could not connect" in text
@@ -218,8 +233,12 @@ async def create_initial_data() -> None:
                     "（生产环境请立即修改！）"
                 )
 
-        # ---------- Demo 用户（仅 dev / test 创建，生产跳过）----------
-        if settings.APP_ENV != "prod":
+        # ---------- Demo 用户（生产或 AUTO_SEED_DATA=false 时跳过）----------
+        # 注意：admin 创建在上面（不受 AUTO_SEED_DATA 影响）——否则按文档把
+        # AUTO_SEED_DATA=false 部署的生产库会永远没有管理员，且 reset_admin
+        # 对不存在用户直接报错，无法自救。
+        auto_seed = getattr(settings, "AUTO_SEED_DATA", True)
+        if settings.APP_ENV != "prod" and auto_seed:
             for username, nickname, email, role_code, plain_pwd in DEMO_USERS:
                 stmt = select(User).where(User.username == username)
                 result = await session.execute(stmt)
@@ -242,10 +261,22 @@ async def create_initial_data() -> None:
                 "✅ demo 用户已创建：manager / alice / bob（仅 dev 环境；生产跳过）"
             )
         else:
-            logger.info("⏭️  生产环境（APP_ENV=prod）跳过 demo 用户创建")
+            logger.info("⏭️  跳过 demo 用户创建（生产环境或 AUTO_SEED_DATA=false）")
 
 
 # ---------- 主入口 ----------
+_diag_printed = False
+
+
+def _diag_once(output: str) -> str:
+    """认证失败在启动流程会触发 3 次（连接检查/create_all/种子）——只在第一次打印全量诊断。"""
+    global _diag_printed
+    if _diag_printed and "认证失败" in output:
+        return "（同上：数据库认证失败，见上方诊断）"
+    _diag_printed = True
+    return output
+
+
 async def init_db() -> None:
     """启动时调用：根据数据库状态自动决定如何维护。
 
@@ -267,31 +298,48 @@ async def init_db() -> None:
         )
         return
 
+    # 注意：AUTO_SEED_DATA=false 只跳过 demo 用户；admin + 角色必须始终创建——
+    # 否则生产库（文档要求 AUTO_SEED_DATA=false）会永远没有管理员。
+
     if auto_init:
         try:
             is_first_run = not await has_alembic_version_table()
         except Exception as exc:
-            logger.warning(_diagnose_alembic_error(f"{type(exc).__name__}: {exc}"))
+            logger.warning(_diag_once(_diagnose_alembic_error(f"{type(exc).__name__}: {exc}")))
             logger.warning("⚠️ 因上述原因检查 alembic 状态失败，降级为首次启动流程")
             is_first_run = True
 
         if is_first_run:
-            # 关键：首次启动只 create_all，**不自动 stamp head**。
-            # 自动 stamp 会让后续 `make db-migrate msg="add xxx"` 生成空迁移
-            # （autogenerate 看到 schema 已存在 + 版本已是 head）。
-            # 改为：用户用 `make db-migrate msg="init"` 显式建首版迁移,后续正常。
-            logger.info("📦 首次启动：create_all（不 stamp alembic，请手动 `make db-migrate msg=init` 初始化迁移）")
+            # 首次启动：create_all + 自动 stamp head。
+            # stamp 后基线版本号写入 alembic_version，之后 add_module 的
+            # `make db-migrate MSG="add xxx"` 能正常生成增量迁移（不会空）。
+            # 注意：基线本身的 DDL 不进迁移链——这是刻意取舍（create_all 直建），
+            # 换库重建时同样走 create_all，无需回放基线迁移。
+            logger.info("📦 首次启动：create_all + stamp 基线")
+            try:
+                await create_tables()
+                # stamp 到脚手架预置的基线迁移（0001_baseline）。
+                # 不能用 "head"：空迁移目录时无 head 可打（静默不写 alembic_version），
+                # 后续 autogenerate 会因版本未知重复生成全量基线。
+                await _alembic_cmd("stamp", "0001_baseline", success_msg="✅ 已标记迁移基线")
+            except Exception as exc:
+                # 走中文诊断（认证失败/连不上等原因在这里也能精确翻译）
+                logger.error(_diag_once(_diagnose_alembic_error(f"{type(exc).__name__}: {exc}")))
+        elif await _tables_missing_but_versioned():
+            # 陷阱场景：alembic_version 存在但业务表没了（如空库直接 upgrade 过 /
+            # 手动 drop 过表）。upgrade 分支只会空转，API 全 500 且无提示。
+            logger.warning("⚠️ 检测到 alembic_version 存在但 users 表缺失——降级为 create_all 重建表结构")
             try:
                 await create_tables()
             except Exception as exc:
-                # 同样走中文诊断（认证失败/连不上等原因在这里也能精确翻译）
-                logger.error(_diagnose_alembic_error(f"{type(exc).__name__}: {exc}"))
+                logger.error(_diag_once(_diagnose_alembic_error(f"{type(exc).__name__}: {exc}")))
         else:
             logger.info("🔄 检测到 alembic_version，执行 upgrade head")
             await _alembic_cmd("upgrade", "head", success_msg="✅ Alembic 迁移完成")
 
-    if auto_seed:
+    # 角色与 admin 的创建不受 AUTO_SEED_DATA 影响（demo 用户才受影响）
+    if auto_init:
         try:
             await create_initial_data()
         except Exception as exc:
-            logger.warning(_diagnose_alembic_error(f"种子数据写入失败 {type(exc).__name__}: {exc}"))
+            logger.warning(_diag_once(_diagnose_alembic_error(f"初始数据写入失败 {type(exc).__name__}: {exc}")))

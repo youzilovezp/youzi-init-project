@@ -10,6 +10,24 @@ from app.schemas.user import UserCreate, UserPasswordUpdate, UserUpdate
 
 
 class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
+    async def list_paginated(
+        self, db, page: int = 1, page_size: int = 20, username=None, is_active=None
+    ):
+        """用户名模糊搜索（前端占位符承诺"模糊搜索"），其余字段精确匹配。"""
+        from sqlalchemy import func, select
+
+        stmt = select(User)
+        count_stmt = select(func.count()).select_from(User)
+        if username:
+            stmt = stmt.where(User.username.ilike(f"%{username}%"))
+            count_stmt = count_stmt.where(User.username.ilike(f"%{username}%"))
+        if is_active is not None:
+            stmt = stmt.where(User.is_active == is_active)
+            count_stmt = count_stmt.where(User.is_active == is_active)
+        total = (await db.execute(count_stmt)).scalar_one()
+        stmt = stmt.offset((page - 1) * page_size).limit(page_size)
+        return list((await db.execute(stmt)).scalars().all()), total
+
     async def get_by_username(self, db, username: str) -> User | None:
         stmt = select(User).where(User.username == username)
         return (await db.execute(stmt)).scalar_one_or_none()

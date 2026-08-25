@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { useUserStore } from '@/stores/user'
+import { sanitizeRedirect } from '@/utils/redirect'
 
 const router = useRouter()
 const route = useRoute()
@@ -17,7 +18,10 @@ const form = reactive({
 })
 
 const rules: FormRules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { min: 3, max: 50, message: '长度 3-50 个字符', trigger: 'blur' },
+  ],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
 }
 
@@ -30,23 +34,17 @@ onMounted(() => {
 
 async function onSubmit() {
   if (!formRef.value) return
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return
-    loading.value = true
-    try {
-      await userStore.login(form)
-      ElMessage.success('登录成功')
-      // 修复：之前直接 router.push(route.query.redirect) 是 open redirect 漏洞。
-      // 攻击者构造 /login?redirect=//evil.com 可把用户重定向到外部域名。
-      // 现在只接受以单个 / 开头（不是 // 协议相对、不是 javascript: 等）
-      const raw = route.query.redirect as string | undefined
-      const redirect =
-        raw && raw.startsWith('/') && !raw.startsWith('//') ? raw : '/dashboard'
-      router.replace(redirect)
-    } finally {
-      loading.value = false
-    }
-  })
+  // validate() 返回 Promise<boolean>——不要用 async 回调（返回值不是 awaitable）
+  const valid = await formRef.value.validate().catch(() => false)
+  if (!valid) return
+  loading.value = true
+  try {
+    await userStore.login(form)
+    ElMessage.success('登录成功')
+    router.replace(sanitizeRedirect(route.query.redirect as string | undefined))
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 

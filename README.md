@@ -30,7 +30,7 @@ cd my-app && make dev
 
 打开 **http://localhost:3000**，账号 `admin` / `admin`，登录成功 ✅
 
-> 💡 默认密码 `admin/admin` 方便本地开发。**生产前用 `python scripts/init.py my-app --admin-pass '<强密码>'` 重设。**
+> 💡 默认密码 `admin/admin` 方便本地开发。**生产前用 `python3 scripts/init.py my-app --admin-pass '<强密码>'` 重设。**
 
 ---
 
@@ -52,12 +52,12 @@ Claude 做：
         ▼
 你拿到：
   my-app/
-  ├── backend/            # FastAPI 后端（data/app.db 是 SQLite 数据库）
+  ├── backend/            # FastAPI 后端（PostgreSQL，自动就绪）
   │   ├── app/            # models / api / crud / core
   │   └── alembic/        # 数据库迁移
   ├── frontend/           # Vue 3 SPA
-  ├── docker-compose.yml  # PostgreSQL/Redis（仅生产模式用）
-  └── Makefile            # make backend-dev / frontend-dev / db-migrate
+  ├── docker-compose.yml  # PostgreSQL/Redis/adminer（本机没有时 Docker 起）
+  └── Makefile            # make dev / test / db-migrate / backup
 ```
 
 ---
@@ -66,8 +66,8 @@ Claude 做：
 
 | 模式 | 适合场景 | 输出 | 启动命令 |
 |---|---|---|---|
-| **`admin`** | 🆕 新建一套完整系统 | 后端 + 前端 + 文档 | `make backend-dev` + `make frontend-dev` |
-| **`server`** | 🔧 接已有前端，加后端 | 后端 + 文档 | `make backend-dev` |
+| **`admin`** | 🆕 新建一套完整系统 | 后端 + 前端 + 文档 | `make dev` |
+| **`server`** | 🔧 接已有前端，加后端 | 后端 + 文档 | `make dev` |
 | **`ui`** | 🎨 接已有后端，加前端 | 纯前端 + 文档 | `pnpm dev` |
 
 > 📌 三种模式都用 `-` 分隔（不用 `:` 是因为 Claude Code 不支持冒号作命令字符）。
@@ -111,7 +111,7 @@ Claude 做：
 
 ```bash
 cd my-app
-python backend/scripts/add_module.py order --title "订单管理" \
+python3 backend/scripts/add_module.py order --title "订单管理" \
   --fields "name:str,price:float:0,stock:int:0,status:str:active"
 ```
 

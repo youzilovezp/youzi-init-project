@@ -24,7 +24,7 @@ make dev    # 装依赖 + 准备中间件 + 后端 + 前端，Ctrl+C 一起停
 | 前端 | http://localhost:3000 | 用户界面 |
 | 后端 API | http://localhost:8000 | REST 接口 |
 | API 文档 | http://localhost:8000/docs | Swagger UI（点 "Authorize" 输入 token 调试） |
-| 数据库 UI | http://localhost:8080 | adminer（`make start` 后可用；登录信息见下） |
+| 数据库 UI | http://localhost:8080 | adminer（手动启动：`docker compose --env-file backend/.env up -d adminer`） |
 | 账号 | `{{ admin_user }}` / 见 `backend/.env` 的 `INITIAL_ADMIN_PASSWORD`（默认 `admin`） | 登录（**生产前必须改密码**） |
 
 > 💡 adminer 登录：Docker 起的 PG 填 Server=`{{ project_name }}-postgres`；复用本机 PG 填 `host.docker.internal`。用户名/密码/库见 `backend/.env`。
@@ -52,8 +52,10 @@ make stop            # 停止 Docker 中间件容器
 ## 加新业务模块
 
 ```bash
-python backend/scripts/add_module.py order --title "订单管理"
+python3 backend/scripts/add_module.py order --title "订单管理"
 ```
+
+> 🤖 用 Claude Code 继续开发本项目？先让它读根目录 **AGENTS.md**（模块注册 5 处、改字段流程、勿动文件清单全在里面）。
 
 脚本会自动生成 model/schema/crud/router/view/api 六个文件，并提示需要手动注册的 5 处地方。
 
@@ -135,7 +137,7 @@ make stop            # 停止 Docker 中间件容器
 ## 加新业务模块
 
 ```bash
-python scripts/add_module.py order --title "订单管理"
+python3 scripts/add_module.py order --title "订单管理"
 ```
 
 脚本会自动生成 model/schema/crud/router 四个文件（检测到前端工程时再生成 view/api），并提示需要手动注册的地方。

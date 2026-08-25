@@ -20,7 +20,9 @@
 from __future__ import annotations
 
 import argparse
+import datetime as _dtmod
 import json
+import keyword
 import re
 import sys
 from pathlib import Path
@@ -88,7 +90,15 @@ def _parse_default(type_: str, raw: str | None):
     if type_ == "float":
         return float(raw)
     if type_ == "bool":
-        return raw.lower() in ("true", "1", "yes", "on")
+        if raw.lower() in ("true", "1", "yes", "on"):
+            return True
+        if raw.lower() in ("false", "0", "no", "off"):
+            return False
+        raise ValueError(f"bool 默认值只能是 true/false（收到 {raw!r}）")
+    if type_ == "datetime":
+        from datetime import datetime as _dt
+
+        return _dt.fromisoformat(raw)  # 非法日期在这里 ValueError，被上层转为友好报错
     return None
 
 
@@ -104,17 +114,24 @@ def _default_js_literal(d) -> str:
         # 用 json.dumps 生成安全的 JS 字符串字面量（自动转义 ' " \ 等）
         # ensure_ascii=False 保留中文字符
         return json.dumps(d, ensure_ascii=False)
+    if isinstance(d, _dtmod.datetime):
+        # datetime 默认值 → ISO 字符串（TS 类型是 string，null 会让 vue-tsc 报错）
+        return json.dumps(d.isoformat(), ensure_ascii=False)
     return "null"
 
 
 def _py_default_literal(d) -> str:
-    """Python 字面量（用于 Pydantic 字段默认值）。"""
+    """Python 字面量（用于 Pydantic 字段默认值 / SQLAlchemy default）。"""
     if d is None:
         return "None"
     if isinstance(d, bool):
         return "True" if d else "False"
     if isinstance(d, str):
         return repr(d)
+    if isinstance(d, _dtmod.datetime):
+        return (
+            f"datetime({d.year}, {d.month}, {d.day}, {d.hour}, {d.minute}, {d.second})"
+        )
     return str(d)
 
 
@@ -146,7 +163,8 @@ def _parse_fields(spec: str | None) -> list[dict]:
         item = raw_item.strip()
         if not item:
             continue
-        parts = item.split(":")
+        # maxsplit=2：默认值本身可含冒号（url:str:http://x、datetime 带时分秒）
+        parts = item.split(":", 2)
         name = parts[0].strip()
         if not name:
             raise ValueError(f"字段名不能为空：{item!r}")
@@ -158,16 +176,7 @@ def _parse_fields(spec: str | None) -> list[dict]:
             raise ValueError(
                 f"字段名 {name!r} 是保留名（id / created_at / updated_at 由 TimestampMixin 自动生成）"
             )
-        if name in {
-            "class",
-            "type",
-            "import",
-            "return",
-            "from",
-            "def",
-            "var",
-            "function",
-        }:
+        if keyword.iskeyword(name) or name in {"var", "function", "interface", "enum"}:
             raise ValueError(f"字段名 {name!r} 是 Python/JS 保留关键字，请换一个")
         type_ = parts[1].strip() if len(parts) > 1 else "str"
         raw_default = parts[2].strip() if len(parts) > 2 else None
@@ -227,6 +236,13 @@ def _model_imports(fields: list[dict]) -> str:
     return ", ".join(sorted(bases))
 
 
+def _model_datetime_import(fields: list[dict]) -> str:
+    """含 datetime 字段时补 from datetime import datetime（否则 NameError 启动崩）。"""
+    if any(f["type"] == "datetime" for f in fields):
+        return "from datetime import datetime\n"
+    return ""
+
+
 def _schema_field_lines(fields: list[dict]) -> str:
     """生成 Pydantic Base 字段行（Base / Create 共用）。"""
     lines = []
@@ -272,10 +288,10 @@ def _form_default_obj(fields: list[dict]) -> str:
                 default = 0
             elif f["type"] == "bool":
                 default = "false"
-            elif f["type"] == "datetime":
-                default = "null"  # ← 之前是 ''，datetime 不能用空串
             else:
-                default = "''"  # str / text 用空串（用户必须填）
+                # str / text / datetime 都用空串（TS 类型均为 string，null 会让 vue-tsc 报错；
+                # el-date-picker 配 value-format 后 v-model 就是字符串）
+                default = "''"
         else:
             default = _default_js_literal(f["default"])
         items.append(f"{f['name']}: {default}")
@@ -344,6 +360,14 @@ def _form_items(fields: list[dict]) -> str:
             )
             lines.append(f'          <el-switch v-model="form.{f["name"]}" />')
             lines.append("        </el-form-item>")
+        elif f["type"] == "datetime":
+            lines.append(
+                f'        <el-form-item label="{_label(f["name"])}" prop="{f["name"]}">'
+            )
+            lines.append(
+                f'          <el-date-picker v-model="form.{f["name"]}" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" />'
+            )
+            lines.append("        </el-form-item>")
         else:
             lines.append(
                 f'        <el-form-item label="{_label(f["name"])}" prop="{f["name"]}">'
@@ -393,7 +417,7 @@ def _render_view(
 # ---------- 模板片段 ----------
 MODEL_TEMPLATE = '''"""__TITLE__ ORM 模型。"""
 
-from sqlalchemy import __MODEL_IMPORTS__
+__MODEL_DATETIME_IMPORT__from sqlalchemy import __MODEL_IMPORTS__
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base_class import Base, TimestampMixin
@@ -442,21 +466,33 @@ __MODULE___crud = CRUDBase[__CLS__, __CLS__Create, __CLS__Update](__CLS__)
 
 ROUTER_TEMPLATE = '''"""__TITLE__ 接口。"""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from app.api.deps import SessionDep, SuperUser
 from app.core.exceptions import NotFoundError
 from app.crud.__MODULE__ import __MODULE___crud
-from app.schemas.common import ResponseModel
+from app.schemas.common import PageResponse, ResponseModel
 from app.schemas.__MODULE__ import __CLS__Create, __CLS__Out, __CLS__Update
 
 router = APIRouter()
 
 
-@router.get("", response_model=ResponseModel[list[__CLS__Out]], summary="__TITLE__列表")
-async def list_items(db: SessionDep, _user: SuperUser):
-    items = await __MODULE___crud.list_all(db)
-    return ResponseModel(data=[__CLS__Out.model_validate(i) for i in items])
+@router.get("", response_model=ResponseModel[PageResponse[__CLS__Out]], summary="__TITLE__列表")
+async def list_items(
+    db: SessionDep,
+    _user: SuperUser,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=200),
+):
+    items, total = await __MODULE___crud.list_paginated(db, page=page, page_size=page_size)
+    return ResponseModel(
+        data=PageResponse[__CLS__Out](
+            items=[__CLS__Out.model_validate(i) for i in items],
+            total=total,
+            page=page,
+            page_size=page_size,
+        )
+    )
 
 
 @router.post("", response_model=ResponseModel[__CLS__Out], summary="创建__TITLE__")
@@ -499,6 +535,9 @@ import type { __CLS__, __CLS__CreatePayload, __CLS__UpdatePayload } from '@/api/
 
 const loading = ref(false)
 const tableData = ref<__CLS__[]>([])
+const total = ref(0)
+const page = ref(1)
+const pageSize = ref(20)
 const dialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
 const formRef = ref<FormInstance>()
@@ -509,11 +548,24 @@ const rules: FormRules = <<%RULES%>>
 async function fetchData() <<%OPEN%>>
   loading.value = true
   try <<%OPEN%>>
-    tableData.value = await __MODULE__Api.listItems()
+    const data = await __MODULE__Api.listItems(page.value, pageSize.value)
+    tableData.value = data.items
+    total.value = data.total
   <<%CLOSE%>> finally <<%OPEN%>>
     loading.value = false
   <<%CLOSE%>>
 }
+
+function handlePageChange(p: number) <<%OPEN%>>
+  page.value = p
+  fetchData()
+<<%CLOSE%>>
+
+function handleSizeChange(s: number) <<%OPEN%>>
+  pageSize.value = s
+  page.value = 1
+  fetchData()
+<<%CLOSE%>>
 
 function openCreate() <<%OPEN%>>
   dialogMode.value = 'create'
@@ -579,6 +631,17 @@ __TABLE_COLUMNS__
           </template>
         </el-table-column>
       </el-table>
+      <div style="margin-top: 16px; display: flex; justify-content: flex-end">
+        <el-pagination
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
+          :total="total"
+          layout="total, sizes, prev, pager, next, jumper"
+          :page-sizes="[10, 20, 50, 100]"
+          @current-change="handlePageChange"
+          @size-change="handleSizeChange"
+        />
+      </div>
     </el-card>
 
     <el-dialog v-model="dialogVisible" :title="dialogMode === 'create' ? '新增__TITLE__' : '编辑__TITLE__'" width="500px">
@@ -596,6 +659,7 @@ __FORM_ITEMS__
 
 API_TEMPLATE = """// __TITLE__ 接口
 import request from './request'
+import type { PageResult } from './types'
 
 export interface __CLS__ <<%OPEN%>>
   id: number
@@ -611,9 +675,9 @@ export interface __CLS__UpdatePayload <<%OPEN%>>
 __TS_UPDATE_FIELDS__
 <<%CLOSE%>>
 
-/** 列表 */
-export function listItems() <<%OPEN%>>
-  return request.get<__CLS__[], __CLS__[]>('/__MODULE__')
+/** 列表（分页） */
+export function listItems(page = 1, pageSize = 20) <<%OPEN%>>
+  return request.get<PageResult<__CLS__>, PageResult<__CLS__>>('/__MODULE__', <<%OPEN%>> params: <<%OPEN%>> page, page_size: pageSize <<%CLOSE%>> <<%CLOSE%>>)
 <<%CLOSE%>>
 
 /** 创建 */
@@ -649,6 +713,13 @@ def add_module(
     if not re.match(r"^[a-z][a-z0-9_]*$", module_name):
         print(f"❌ 模块名格式错误：{module_name}（只允许小写字母、数字、下划线）")
         return 1
+    if keyword.iskeyword(module_name):
+        print(f"❌ 模块名 {module_name!r} 是 Python 关键字，请换一个")
+        return 1
+    # title 会插入生成的 .py / .ts / .vue 源码——拦截会破坏语法的字符
+    if title and any(c in title for c in ['"', "'", "\\", "\n", "\r", "\0", "`"]):
+        print("❌ --title 不能包含引号 / 反斜杠 / 反引号 / 换行等字符")
+        return 1
 
     # 目录自动探测：admin 模式 app 在 backend/，server 模式 app 在根目录
     if backend_dir is None:
@@ -665,12 +736,15 @@ def add_module(
     title = title or _pascal(module_name)
     model_cls = _pascal(module_name)
     cls = model_cls
-    table_name = (
-        module_name + "s" if not module_name.endswith("s") else module_name + "es"
-    )
+    # 简单英文复数：s/x/z/ch/sh 结尾 +es，其余 +s（watch→watches、bus→buses、box→boxes）
+    if module_name.endswith(("s", "x", "z", "ch", "sh")):
+        table_name = module_name + "es"
+    else:
+        table_name = module_name + "s"
 
     # 一次性算好所有动态内容
     model_imports = _model_imports(fields)
+    model_datetime_import = _model_datetime_import(fields)
     model_fields_str = _model_field_lines(fields)
     schema_fields_str = _schema_field_lines(fields)
     schema_update_str = _schema_update_lines(fields)
@@ -695,6 +769,7 @@ def add_module(
             MODEL_TEMPLATE,
             TITLE=title,
             MODEL_IMPORTS=model_imports,
+            MODEL_DATETIME_IMPORT=model_datetime_import,
             CLS=model_cls,
             TABLE=table_name,
             MODEL_FIELDS=model_fields_str,
@@ -794,7 +869,13 @@ def add_module(
             f"      {{ path: '{module_name}', name: '{model_cls}', component: () => import('@/views/{module_name}/index.vue'), meta: {{ title: '{title}', icon: 'Document' }} }}"
         )
         print()
-        print("   4. 编辑 frontend/src/layouts/BasicLayout.vue，添加菜单项。")
+        print(
+            "   4. 编辑 frontend/src/layouts/BasicLayout.vue，在 const menus = [ 里加一行："
+        )
+        print(f"      {{ path: '/{module_name}', title: '{title}', icon: 'Document' }}")
+        print(
+            "      （icon 填 Element Plus 图标名的字符串，如 Goods / Document / Setting）"
+        )
         print()
         print(
             f'   5. 生成数据库迁移：`make db-migrate MSG="add {module_name}"` 然后 `make db-upgrade`'
@@ -844,13 +925,16 @@ def main() -> int:
     args = parser.parse_args()
     # 用模块全局变量传递 force（避免改动函数签名与现有调用方）
     add_module._force = args.force  # type: ignore[attr-defined]
-    return add_module(
-        module_name=args.name,
-        title=args.title,
-        fields_spec=args.fields,
-        backend_dir=Path(args.backend_dir) if args.backend_dir else None,
-        frontend_dir=Path(args.frontend_dir) if args.frontend_dir else None,
-    )
+    try:
+        return add_module(
+            module_name=args.name,
+            title=args.title,
+            fields_spec=args.fields,
+            backend_dir=Path(args.backend_dir) if args.backend_dir else None,
+            frontend_dir=Path(args.frontend_dir) if args.frontend_dir else None,
+        )
+    finally:
+        add_module._force = False  # type: ignore[attr-defined]  防同进程后续调用静默强制覆盖
 
 
 if __name__ == "__main__":

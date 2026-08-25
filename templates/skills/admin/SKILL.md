@@ -64,7 +64,7 @@ Claude 会询问项目显示名（可选）和初始管理员密码（可选）�
 ## 加新业务模块
 
 ```bash
-python backend/scripts/add_module.py order --title "订单管理"
+python3 backend/scripts/add_module.py order --title "订单管理"
 ```
 
 自动生成 model/schema/crud/router/view/api 六个文件。脚本会提示**5 处手动操作**：
@@ -78,7 +78,7 @@ python backend/scripts/add_module.py order --title "订单管理"
 带自定义字段（避免后续手动改 5 个文件）：
 
 ```bash
-python backend/scripts/add_module.py product --title "商品管理" \
+python3 backend/scripts/add_module.py product --title "商品管理" \
     --fields "name:str,price:float:0,stock:int:0,status:str:active"
 ```
 

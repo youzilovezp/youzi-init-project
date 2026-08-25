@@ -76,9 +76,16 @@ router.beforeEach(async (to: RouteLocationNormalized, _from: RouteLocationNormal
     try {
       await userStore.fetchProfile()
     } catch (e) {
-      await userStore.logout()
-      // 修复：刷新受保护路由时丢 redirect，导致登录后被送到默认页
-      return next({ name: 'Login', query: { redirect: to.fullPath } })
+      // 仅"未授权"才登出；网络抖动 / 5xx 不踢用户（否则一次超时就全员掉线）
+      const status = (e as { response?: { status?: number } })?.response?.status
+      if (status === 401 || status === 403) {
+        await userStore.logout()
+        return next({ name: 'Login', query: { redirect: to.fullPath } })
+      }
+      // 拿不到用户信息就别放行 admin 页，普通页放行
+      if (to.meta.requiresAdmin) {
+        return next({ name: 'Login', query: { redirect: to.fullPath } })
+      }
     }
   }
 

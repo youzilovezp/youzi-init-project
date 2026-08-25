@@ -15,20 +15,20 @@ dist/
 build/
 logs/
 *.log
-{% if only == 'admin' %}
-# Node（admin 模式）
+{% if only != 'server' %}
+# Node（admin / ui 模式）
 node_modules/
 .pnp.*
 .yarn/
 
-# Build（admin 模式）
+# Build（admin / ui 模式）
 dist/
 dist-ssr/
 *.local
 .env.local
 .env.*.local
 
-# Auto-generated（admin 模式）
+# Auto-generated（admin / ui 模式）
 auto-imports.d.ts
 components.d.ts
 {% endif %}
@@ -43,7 +43,10 @@ components.d.ts
 .env
 .env.local
 
-# SQLite 数据库文件（默认 DB_TYPE=sqlite）
+# 备份产物（含真实数据，绝不入库）
+backups/
+
+# SQLite 数据库文件（DB_TYPE=sqlite 时）
 backend/data/
 data/
 

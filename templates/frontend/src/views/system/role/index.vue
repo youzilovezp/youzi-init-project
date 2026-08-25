@@ -68,7 +68,8 @@ async function handleSubmit() {
 }
 
 async function handleDelete(row: Role) {
-  await ElMessageBox.confirm(`确定删除角色「${row.name}」吗？`, '提示', { type: 'warning' })
+  const ok = await ElMessageBox.confirm(`确定删除角色「${row.name}」吗？`, '提示', { type: 'warning' }).catch(() => false)
+  if (ok === false) return
   await roleApi.deleteRole(row.id)
   ElMessage.success('已删除')
   fetchData()

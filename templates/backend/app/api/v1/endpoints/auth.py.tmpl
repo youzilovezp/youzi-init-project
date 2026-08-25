@@ -12,13 +12,12 @@ from pydantic import BaseModel
 
 from app.api.deps import CurrentUser, SessionDep
 from app.core.exceptions import AuthError
-from app.schemas.common import ResponseModel
-from app.schemas.user import LoginRequest, LoginResponse, UserOut
-from app.services.auth_service import auth_service
 {% if enable_redis %}
 from app.core.ratelimit import limiter
 {% endif %}
-
+from app.schemas.common import ResponseModel
+from app.schemas.user import LoginRequest, LoginResponse, UserOut
+from app.services.auth_service import auth_service
 router = APIRouter()
 
 
@@ -50,8 +49,12 @@ async def login(request: Request, db: SessionDep):
     content_type = (request.headers.get("content-type") or "").lower()
 
     if content_type.split(";")[0].strip() == "application/json":
-        body = await request.json()
-        json_body = LoginJSON(**body)
+        try:
+            body = await request.json()
+            json_body = LoginJSON(**body)
+        except Exception as exc:
+            # 非法 JSON / body 不是对象 → 422 参数错，而不是 500
+            raise AuthError(f"请求体不是合法的 JSON 对象: {type(exc).__name__}") from exc
         payload = LoginRequest(username=json_body.username, password=json_body.password)
     elif (
         "application/x-www-form-urlencoded" in content_type
@@ -70,8 +73,12 @@ async def login(db: SessionDep, request: Request):
     content_type = (request.headers.get("content-type") or "").lower()
 
     if content_type.split(";")[0].strip() == "application/json":
-        body = await request.json()
-        json_body = LoginJSON(**body)
+        try:
+            body = await request.json()
+            json_body = LoginJSON(**body)
+        except Exception as exc:
+            # 非法 JSON / body 不是对象 → 422 参数错，而不是 500
+            raise AuthError(f"请求体不是合法的 JSON 对象: {type(exc).__name__}") from exc
         payload = LoginRequest(username=json_body.username, password=json_body.password)
     elif (
         "application/x-www-form-urlencoded" in content_type
@@ -84,8 +91,6 @@ async def login(db: SessionDep, request: Request):
     data = await auth_service.login(db, payload)
     return ResponseModel(data=data)
 {% endif %}
-
-
 @router.get("/me", response_model=ResponseModel[UserOut], summary="当前用户信息")
 async def me(user: CurrentUser):
     return ResponseModel(data=UserOut.model_validate(user))

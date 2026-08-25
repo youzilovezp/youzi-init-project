@@ -42,6 +42,15 @@ async def list_users(
 async def create_user(db: SessionDep, _user: SuperUser, payload: UserCreate):
     if await user_crud.get_by_username(db, payload.username):
         raise BusinessError(code=40001, message="用户名已存在")
+    # email 是 DB unique 列：先查重，避免 IntegrityError 变 500
+    if payload.email and await user_crud.get_by_email(db, payload.email):
+        raise BusinessError(code=40001, message="邮箱已被使用")
+    # role_id 是外键：不校验会 FK 违约变 500
+    if payload.role_id is not None:
+        from app.crud.role import role_crud
+
+        if await role_crud.get(db, payload.role_id) is None:
+            raise BusinessError(code=40001, message="角色不存在")
     user = await user_crud.create(db, payload)
     return ResponseModel(data=UserOut.model_validate(user))
 
@@ -64,6 +73,14 @@ async def update_user(
     target = await user_crud.get(db, user_id)
     if target is None:
         raise NotFoundError("用户不存在")
+    if payload.email and payload.email != target.email:
+        if await user_crud.get_by_email(db, payload.email):
+            raise BusinessError(code=40001, message="邮箱已被使用")
+    if payload.role_id is not None:
+        from app.crud.role import role_crud
+
+        if await role_crud.get(db, payload.role_id) is None:
+            raise BusinessError(code=40001, message="角色不存在")
     updated = await user_crud.update(db, target, payload)
     return ResponseModel(data=UserOut.model_validate(updated))
 
@@ -79,6 +96,7 @@ async def delete_user(db: SessionDep, user: SuperUser, user_id: int):
         raise NotFoundError("用户不存在")
     if target.is_superuser:
         from sqlalchemy import func, select
+
         from app.models.user import User as UserModel
 
         cnt = (

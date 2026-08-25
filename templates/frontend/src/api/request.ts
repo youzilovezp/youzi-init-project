@@ -60,7 +60,7 @@ function showSessionExpiredDialog() {
 
 const request = axios.create({
   baseURL,
-  timeout: 30000,
+  timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -100,7 +100,10 @@ request.interceptors.response.use(
   async (error: AxiosError<ApiResponse>) => {
     const silent = (error.config as RequestOptions | undefined)?.silent
     const status = error.response?.status
-    const message = error.response?.data?.message || error.message || '网络异常'
+    // 超时/断网给中文提示（原始英文 axios 文案对用户不友好）
+    let message = error.response?.data?.message || error.message || '网络异常'
+    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) message = '请求超时，请检查网络后重试'
+    else if (!error.response) message = '无法连接服务器，请确认服务已启动'
     const url = error.config?.url || ''
 
     // 401 处理：登录失败（/auth/login 命中） vs 会话过期（其他接口）分开

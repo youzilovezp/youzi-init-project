@@ -145,6 +145,7 @@ def post_process_frontend(target_dir: Path, context: dict) -> None:
         target_dir / ".env.production",
         target_dir / "src" / "views" / "login" / "index.vue",
         target_dir / "src" / "layouts" / "BasicLayout.vue",
+        target_dir / "src" / "__tests__" / "setup.ts",
         target_dir / "index.html",
         target_dir / "vite.config.ts",
         target_dir / "前端说明.md",
@@ -287,7 +288,7 @@ def main() -> int:
     parser.add_argument(
         "--admin-pass",
         default=None,
-        help="初始管理员密码（默认随机生成，启动时控制台打印）",
+        help="初始管理员密码（默认 admin/admin，仅供本地；生产必须指定强密码）",
     )
     parser.add_argument("--init-git", action="store_true", help="生成后自动 git init")
     parser.add_argument(
@@ -393,6 +394,13 @@ def main() -> int:
                 else target_dir / ".env"
             )
             write_dotenv(env_target, env_example, context)
+            # --with-redis 必须真的启用：REDIS_HOST 留空 = 永远走内存限流，flag 等于没用
+            if args.with_redis:
+                et = env_target.read_text(encoding="utf-8")
+                import re as _re
+
+                et = _re.sub(r"^REDIS_HOST=$", "REDIS_HOST=localhost", et, flags=_re.M)
+                env_target.write_text(et, encoding="utf-8")
 
     if args.only in ("admin", "ui"):
         post_process_frontend(

@@ -52,10 +52,18 @@ async def main() -> int:
     # 默认重置为 "admin"：本地脚手架场景下保持简单，生产务必显式 --password 传入强密码
     new_password = args.password or "admin"
 
-    async with async_session() as session:
-        stmt = select(User).where(User.username == args.username)
-        result = await session.execute(stmt)
-        user = result.scalar_one_or_none()
+    try:
+        async with async_session() as session:
+            stmt = select(User).where(User.username == args.username)
+            result = await session.execute(stmt)
+            user = result.scalar_one_or_none()
+    except Exception as exc:
+        print(
+            "❌ 数据库不可用或未初始化（先跑一次 make backend-dev 让后端自动建表）",
+            file=sys.stderr,
+        )
+        print(f"   原因：{type(exc).__name__}: {str(exc)[:200]}", file=sys.stderr)
+        return 1
         if user is None:
             print(f"❌ 用户不存在：{args.username}")
             return 1

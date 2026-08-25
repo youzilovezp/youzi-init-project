@@ -24,8 +24,7 @@ from app.core.exceptions import register_exception_handlers
 from app.core.logging import setup_logging
 from app.core.ratelimit import limiter
 from app.db.init_db import init_db
-from app.db.session import async_session
-{% if enable_redis %}
+from app.db.session import async_session{% if enable_redis %}
 from app.db.redis_client import redis_client
 {% endif %}
 from app.middleware.logging import LoggingMiddleware
@@ -45,14 +44,14 @@ async def lifespan(app: FastAPI):
     if settings.APP_ENV == "prod":
         _check_prod_secrets()
     await init_db()
-    {% if enable_redis %}
+{% if enable_redis %}
     await redis_client.connect()
-    {% endif %}
+{% endif %}
     yield
-    {% if enable_redis %}
-    await redis_client.close()
-    {% endif %}
 
+{% if enable_redis %}
+    await redis_client.close()
+{% endif %}
 
 def _check_prod_secrets() -> None:
     """生产环境启动时的硬性安全检查：弱密码直接拒绝启动。"""
@@ -145,14 +144,14 @@ def create_app() -> FastAPI:
             ok = False
             # 不外泄错误类名 / 详情,服务端打日志即可
             details["database"] = "down"
-        {% if enable_redis %}
+{% if enable_redis %}
         try:
             await redis_client.ping()
             details["redis"] = "ok"
         except Exception:  # noqa: BLE001
             ok = False
             details["redis"] = "down"
-        {% endif %}
+{% endif %}
         return JSONResponse(
             status_code=200 if ok else 503,
             content={"status": "ready" if ok else "not_ready", **details},

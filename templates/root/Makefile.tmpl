@@ -6,13 +6,18 @@ ENV_FILE := backend/.env
 # venv 里的 python（make install / backend-dev 创建）；没有则退回 python3
 VENV_PY := $(wildcard backend/.venv/bin/python)
 BPY := $(if $(VENV_PY),backend/.venv/bin/python,python3)
-.PHONY: help backend-dev frontend-dev install db-migrate db-upgrade db-downgrade reset-admin admin-pass test dev use-sqlite use-pg start stop backup
+.PHONY: help backend-dev frontend-dev install db-migrate db-upgrade db-downgrade reset-admin admin-pass test dev use-sqlite use-pg start stop backup restore
 
 # 从 .env 读中间件端口（没写用默认值）
-PG_PORT := $(shell sed -n 's/^POSTGRES_PORT=//p' $(ENV_FILE) 2>/dev/null | head -1)
-REDIS_PORT := $(shell sed -n 's/^REDIS_PORT=//p' $(ENV_FILE) 2>/dev/null | head -1)
+PG_PORT := $(shell sed -n 's/^POSTGRES_PORT=//p' $(ENV_FILE) 2>/dev/null | head -1 | awk '{print $$1}')
+REDIS_PORT := $(shell sed -n 's/^REDIS_PORT=//p' $(ENV_FILE) 2>/dev/null | head -1 | awk '{print $$1}')
 PG_PORT := $(if $(PG_PORT),$(PG_PORT),5432)
 REDIS_PORT := $(if $(REDIS_PORT),$(REDIS_PORT),6379)
+# 服务端口从 .env 读（改 .env 的 PORT / FRONTEND_PORT 即生效，支持多项目并存）
+BACKEND_PORT := $(shell sed -n 's/^PORT=//p' $(ENV_FILE) 2>/dev/null | head -1 | awk '{print $$1}')
+BACKEND_PORT := $(if $(BACKEND_PORT),$(BACKEND_PORT),{{ backend_port }})
+FRONTEND_PORT := $(shell sed -n 's/^FRONTEND_PORT=//p' $(ENV_FILE) 2>/dev/null | head -1 | awk '{print $$1}')
+FRONTEND_PORT := $(if $(FRONTEND_PORT),$(FRONTEND_PORT),{{ frontend_port }})
 
 # 端口探测（python3 socket，跨平台无依赖）：exit 0 = 有人监听（可复用）
 port_listening = python3 -c "import socket,sys; s=socket.socket(); s.settimeout(0.5); sys.exit(0 if s.connect_ex(('127.0.0.1', $(1))) == 0 else 1)"
@@ -22,10 +27,18 @@ help:           ## 显示帮助
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
 install:        ## 安装依赖（后端 venv + 前端 node_modules）
+	@python3 -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)" || \
+		{ echo "❌ Python $$(python3 --version 2>&1) 过低：本项目需要 3.11+（python.org 下载）"; exit 1; }
 	cd backend && (test -d .venv || uv venv .venv 2>/dev/null || python3 -m venv .venv) && \
 	. .venv/bin/activate && \
 	(uv pip install -e ".[dev]" 2>/dev/null || pip install -e ".[dev]")
-	cd frontend && (pnpm install 2>/dev/null || npm install)
+	@if command -v pnpm >/dev/null 2>&1; then \
+		cd frontend && pnpm install; \
+	elif command -v npm >/dev/null 2>&1; then \
+		echo "ℹ️  未装 pnpm，用 npm 安装（可 npm install -g pnpm 提速）"; cd frontend && npm install; \
+	else \
+		echo "❌ 前端依赖安装失败：pnpm / npm 都不可用——先装 Node.js LTS（nodejs.org）"; exit 1; \
+	fi
 
 # 依赖 start：先确保中间件就绪（复用本机 / Docker 起），再启动后端
 backend-dev: start  ## 启动后端（自动准备中间件 + 建表 + 种子）
@@ -33,10 +46,10 @@ backend-dev: start  ## 启动后端（自动准备中间件 + 建表 + 种子）
 	(test -f .env || cp .env.example .env) && \
 	. .venv/bin/activate && \
 	(uv pip install -e ".[dev]" 2>/dev/null || pip install -e ".[dev]") && \
-	uvicorn app.main:app --reload --host 0.0.0.0 --port {{ backend_port }}
+	uvicorn app.main:app --reload --host 0.0.0.0 --port $(BACKEND_PORT)
 
 frontend-dev:   ## 启动前端
-	cd frontend && (pnpm dev --port {{ frontend_port }} 2>/dev/null || npm run dev -- --port {{ frontend_port }})
+	cd frontend && (pnpm dev --port $(FRONTEND_PORT) 2>/dev/null || npm run dev -- --port $(FRONTEND_PORT))
 
 # 生成迁移文件：make db-migrate MSG="add order"
 db-migrate:     ## 生成新迁移（MSG="描述"）
@@ -44,7 +57,12 @@ db-migrate:     ## 生成新迁移（MSG="描述"）
 		echo "❌ 必须传 MSG: make db-migrate MSG=\"add order\""; \
 		exit 1; \
 	fi
-	cd backend && $(if $(VENV_PY),.venv/bin/python,python3) -m alembic revision --autogenerate -m "$(MSG)"
+	cd backend && $(if $(VENV_PY),.venv/bin/python,python3) -m alembic revision --autogenerate -m "$(MSG)"; \
+	f=$$(ls -t backend/alembic/versions/*.py 2>/dev/null | head -1); \
+	if [ -n "$$f" ] && ! grep -q "op\.\|sa\." "$$f"; then \
+		echo "⚠️  本次迁移是空的（没有检测到表结构变更）。最常见原因：新 Model 没在 backend/app/models/__init__.py 注册"; \
+		echo "   请检查：grep 'from app.models.<模块名>' backend/app/models/__init__.py"; \
+	fi
 
 # 应用所有迁移
 db-upgrade:     ## 应用所有迁移到最新
@@ -64,15 +82,18 @@ reset-admin:    ## 重置 admin 密码（不传则重置为 admin）
 admin-pass:     ## 重置 admin 密码为 NEW=... 指定值
 	cd backend && $(if $(VENV_PY),.venv/bin/python,python3) scripts/reset_admin.py --password "$(NEW)"
 
-test: install start  ## 跑后端 + 前端测试（自动装依赖 + 确保中间件就绪）
+test: install  ## 跑后端 + 前端测试（用独立临时测试库，不碰开发数据、不需要中间件）
 	cd backend && $(if $(VENV_PY),.venv/bin/python,python3) -m pytest -q
 	cd frontend && (pnpm test 2>/dev/null || npm test)
 
 # 一条命令同时启动前后端（Ctrl+C 一起停）
 dev: install start  ## 一键启动：后端 + 前端（Ctrl+C 全部停止）
 	@trap 'kill 0' INT TERM; \
-	( cd backend && . .venv/bin/activate 2>/dev/null; exec uvicorn app.main:app --reload --host 0.0.0.0 --port {{ backend_port }} ) & \
-	( cd frontend && exec pnpm dev --port {{ frontend_port }} 2>/dev/null ) & \
+	( cd backend && . .venv/bin/activate 2>/dev/null; exec uvicorn app.main:app --reload --host 0.0.0.0 --port $(BACKEND_PORT) ) & \
+	( cd frontend && \
+	  if command -v pnpm >/dev/null 2>&1; then exec pnpm dev --port $(FRONTEND_PORT); \
+	  elif command -v npm >/dev/null 2>&1; then exec npm run dev -- --port $(FRONTEND_PORT); \
+	  else echo "❌ 前端未启动：pnpm / npm 都不可用（装 Node.js：nodejs.org）"; exit 1; fi ) & \
 	wait
 
 use-sqlite:     ## 切换到 SQLite（零依赖单文件，免中间件）
@@ -95,11 +116,36 @@ backup:         ## 备份数据库到 backups/（PG 用 pg_dump；SQLite 复制�
 		db=$$(sed -n 's/^POSTGRES_DB=//p' $(ENV_FILE) | head -1); \
 		port=$$(sed -n 's/^POSTGRES_PORT=//p' $(ENV_FILE) | head -1); \
 		if docker compose --env-file $(ENV_FILE) ps --status running postgres 2>/dev/null | grep -q postgres; then \
-			docker compose --env-file $(ENV_FILE) exec -T postgres pg_dump -U "$${user:-{{ project_name }}}" "$${db:-{{ project_name }}}" > "backups/app_$$ts.sql" && echo "✅ 已备份到 backups/app_$$ts.sql"; \
+			docker compose --env-file $(ENV_FILE) exec -T postgres pg_dump -U "$${user:-{{ project_name }}}" "$${db:-{{ project_name }}}" > "backups/app_$$ts.sql"; \
+			if grep -q "^COPY" "backups/app_$$ts.sql"; then echo "✅ 已备份到 backups/app_$$ts.sql"; \
+			else echo "⚠️  备份完成但库是空的（没有业务数据）——先启动过后端再备份"; fi; \
 		else \
+			if ! command -v pg_dump >/dev/null 2>&1; then echo "❌ 备份需要 pg_dump（PostgreSQL 客户端工具）；装 PostgreSQL 或改用 Docker 模式"; rm -f "backups/app_$$ts.sql"; exit 1; fi; \
 			PGPASSWORD=$$(sed -n 's/^POSTGRES_PASSWORD=//p' $(ENV_FILE) | head -1) pg_dump -h 127.0.0.1 -p "$${port:-$(PG_PORT)}" -U "$${user:-{{ project_name }}}" "$${db:-{{ project_name }}}" > "backups/app_$$ts.sql" && echo "✅ 已备份到 backups/app_$$ts.sql"; \
 		fi; \
 	fi
+
+# 恢复备份：make restore FILE=backups/app_20260825_220000.sql（或 .db）
+restore:        ## 恢复备份（FILE=backups/xxx.sql 或 .db）
+	@if [ -z "$(FILE)" ]; then echo "❌ 用法: make restore FILE=backups/app_xxx.sql"; exit 1; fi; \
+	if [ ! -f "$(FILE)" ]; then echo "❌ 文件不存在: $(FILE)"; exit 1; fi; \
+	case "$(FILE)" in \
+	  *.db) cp "$(FILE)" backend/data/app.db && echo "✅ SQLite 已恢复到 backend/data/app.db（重启后端生效）";; \
+	  *.sql) user=$$(sed -n 's/^POSTGRES_USER=//p' $(ENV_FILE) | head -1 | awk '{print $$1}'); \
+	    db=$$(sed -n 's/^POSTGRES_DB=//p' $(ENV_FILE) | head -1 | awk '{print $$1}'); \
+	    DROP_CMD="DROP SCHEMA public CASCADE; CREATE SCHEMA public;"; \
+	    if docker compose --env-file $(ENV_FILE) ps --status running postgres 2>/dev/null | grep -q postgres; then \
+	      echo "⚠️  先清空目标库（DROP SCHEMA public）再导入——当前库数据将被备份文件覆盖"; \
+	      docker compose --env-file $(ENV_FILE) exec -T postgres psql -U "$${user:-{{ project_name }}}" -d "$${db:-{{ project_name }}}" -c "$$DROP_CMD" >/dev/null 2>&1; \
+	      docker compose --env-file $(ENV_FILE) exec -T postgres psql -U "$${user:-{{ project_name }}}" -d "$${db:-{{ project_name }}}" -v ON_ERROR_STOP=1 < "$(FILE)" && echo "✅ PG 已恢复（Docker 实例）"; \
+	    else \
+	      if ! command -v psql >/dev/null 2>&1; then echo "❌ 复用本机 PG 恢复需要 psql 客户端；先 make start 再恢复（Docker 模式）"; exit 1; fi; \
+	      echo "⚠️  先清空目标库（DROP SCHEMA public）再导入——当前库数据将被备份文件覆盖"; \
+	      PGPASSWORD=$$(sed -n 's/^POSTGRES_PASSWORD=//p' $(ENV_FILE) | head -1 | awk '{print $$1}') psql -h 127.0.0.1 -p $(PG_PORT) -U "$${user:-{{ project_name }}}" -d "$${db:-{{ project_name }}}" -c "$$DROP_CMD" >/dev/null 2>&1; \
+	      PGPASSWORD=$$(sed -n 's/^POSTGRES_PASSWORD=//p' $(ENV_FILE) | head -1 | awk '{print $$1}') psql -h 127.0.0.1 -p $(PG_PORT) -U "$${user:-{{ project_name }}}" -d "$${db:-{{ project_name }}}" -v ON_ERROR_STOP=1 < "$(FILE)" && echo "✅ PG 已恢复（本机实例）"; \
+	    fi;; \
+	  *) echo "❌ 只支持 .sql / .db 备份文件"; exit 1;; \
+	esac
 
 # 中间件启停：读 .env 实时配置。本机已有 PostgreSQL/Redis 直接复用；缺的才用 Docker 起。
 start:          ## 启动中间件（优先复用本机已运行的 PG/Redis）
@@ -137,6 +183,10 @@ start:          ## 启动中间件（优先复用本机已运行的 PG/Redis）
 			echo "   解决：装 Docker（docker.com），或把 .env 指向本机已运行的中间件"; \
 			exit 1; \
 		fi; \
+		if ! docker info >/dev/null 2>&1; then \
+			echo "❌ Docker 已装但没启动——打开 Docker Desktop，等图标就绪后重试"; \
+			exit 1; \
+		fi; \
 		echo "🐳 Docker 启动缺少的中间件:$$services"; \
 		docker compose --env-file $(ENV_FILE) up -d $$services; \
 	else \
@@ -151,12 +201,17 @@ stop:           ## 停止 Docker 中间件容器（本机服务不受影响）
 ENV_FILE := .env
 VENV_PY := $(wildcard .venv/bin/python)
 BPY := $(if $(VENV_PY),.venv/bin/python,python3)
-.PHONY: help backend-dev install db-migrate db-upgrade db-downgrade reset-admin admin-pass test dev use-sqlite use-pg start stop backup
+.PHONY: help backend-dev install db-migrate db-upgrade db-downgrade reset-admin admin-pass test dev use-sqlite use-pg start stop backup restore
 
-PG_PORT := $(shell sed -n 's/^POSTGRES_PORT=//p' $(ENV_FILE) 2>/dev/null | head -1)
-REDIS_PORT := $(shell sed -n 's/^REDIS_PORT=//p' $(ENV_FILE) 2>/dev/null | head -1)
+PG_PORT := $(shell sed -n 's/^POSTGRES_PORT=//p' $(ENV_FILE) 2>/dev/null | head -1 | awk '{print $$1}')
+REDIS_PORT := $(shell sed -n 's/^REDIS_PORT=//p' $(ENV_FILE) 2>/dev/null | head -1 | awk '{print $$1}')
 PG_PORT := $(if $(PG_PORT),$(PG_PORT),5432)
 REDIS_PORT := $(if $(REDIS_PORT),$(REDIS_PORT),6379)
+# 服务端口从 .env 读（改 .env 的 PORT / FRONTEND_PORT 即生效，支持多项目并存）
+BACKEND_PORT := $(shell sed -n 's/^PORT=//p' $(ENV_FILE) 2>/dev/null | head -1 | awk '{print $$1}')
+BACKEND_PORT := $(if $(BACKEND_PORT),$(BACKEND_PORT),{{ backend_port }})
+FRONTEND_PORT := $(shell sed -n 's/^FRONTEND_PORT=//p' $(ENV_FILE) 2>/dev/null | head -1 | awk '{print $$1}')
+FRONTEND_PORT := $(if $(FRONTEND_PORT),$(FRONTEND_PORT),{{ frontend_port }})
 
 port_listening = python3 -c "import socket,sys; s=socket.socket(); s.settimeout(0.5); sys.exit(0 if s.connect_ex(('127.0.0.1', $(1))) == 0 else 1)"
 
@@ -165,6 +220,8 @@ help:           ## 显示帮助
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
 install:        ## 安装后端依赖（创建 venv）
+	@python3 -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)" || \
+		{ echo "❌ Python $$(python3 --version 2>&1) 过低：本项目需要 3.11+（python.org 下载）"; exit 1; }
 	(test -d .venv || uv venv .venv 2>/dev/null || python3 -m venv .venv) && \
 	. .venv/bin/activate && \
 	(uv pip install -e ".[dev]" 2>/dev/null || pip install -e ".[dev]")
@@ -175,7 +232,7 @@ backend-dev: start  ## 启动后端（自动准备中间件 + 建表 + 种子）
 	(test -f .env || cp .env.example .env) && \
 	. .venv/bin/activate && \
 	(uv pip install -e ".[dev]" 2>/dev/null || pip install -e ".[dev]") && \
-	uvicorn app.main:app --reload --host 0.0.0.0 --port {{ backend_port }}
+	uvicorn app.main:app --reload --host 0.0.0.0 --port $(BACKEND_PORT)
 
 # 生成迁移文件：make db-migrate MSG="add order"
 db-migrate:     ## 生成新迁移（MSG="描述"）
@@ -183,7 +240,11 @@ db-migrate:     ## 生成新迁移（MSG="描述"）
 		echo "❌ 必须传 MSG: make db-migrate MSG=\"add order\""; \
 		exit 1; \
 	fi
-	$(BPY) -m alembic revision --autogenerate -m "$(MSG)"
+	$(BPY) -m alembic revision --autogenerate -m "$(MSG)"; \
+	f=$$(ls -t alembic/versions/*.py 2>/dev/null | head -1); \
+	if [ -n "$$f" ] && ! grep -q "op\.\|sa\." "$$f"; then \
+		echo "⚠️  本次迁移是空的（没有检测到表结构变更）。最常见原因：新 Model 没在 app/models/__init__.py 注册"; \
+	fi
 
 # 应用所有迁移
 db-upgrade:     ## 应用所有迁移到最新
@@ -203,7 +264,7 @@ reset-admin:    ## 重置 admin 密码（不传则重置为 admin）
 admin-pass:     ## 重置 admin 密码为 NEW=... 指定值
 	$(BPY) scripts/reset_admin.py --password "$(NEW)"
 
-test: install start  ## 跑后端测试（自动装依赖 + 确保中间件就绪）
+test: install  ## 跑后端测试（用独立临时测试库，不碰开发数据、不需要中间件）
 	$(BPY) -m pytest -q
 
 dev: backend-dev  ## 一键启动后端（等价 backend-dev）
@@ -228,11 +289,36 @@ backup:         ## 备份数据库到 backups/（PG 用 pg_dump；SQLite 复制�
 		db=$$(sed -n 's/^POSTGRES_DB=//p' $(ENV_FILE) | head -1); \
 		port=$$(sed -n 's/^POSTGRES_PORT=//p' $(ENV_FILE) | head -1); \
 		if docker compose --env-file $(ENV_FILE) ps --status running postgres 2>/dev/null | grep -q postgres; then \
-			docker compose --env-file $(ENV_FILE) exec -T postgres pg_dump -U "$${user:-{{ project_name }}}" "$${db:-{{ project_name }}}" > "backups/app_$$ts.sql" && echo "✅ 已备份到 backups/app_$$ts.sql"; \
+			docker compose --env-file $(ENV_FILE) exec -T postgres pg_dump -U "$${user:-{{ project_name }}}" "$${db:-{{ project_name }}}" > "backups/app_$$ts.sql"; \
+			if grep -q "^COPY" "backups/app_$$ts.sql"; then echo "✅ 已备份到 backups/app_$$ts.sql"; \
+			else echo "⚠️  备份完成但库是空的（没有业务数据）——先启动过后端再备份"; fi; \
 		else \
+			if ! command -v pg_dump >/dev/null 2>&1; then echo "❌ 备份需要 pg_dump（PostgreSQL 客户端工具）；装 PostgreSQL 或改用 Docker 模式"; rm -f "backups/app_$$ts.sql"; exit 1; fi; \
 			PGPASSWORD=$$(sed -n 's/^POSTGRES_PASSWORD=//p' $(ENV_FILE) | head -1) pg_dump -h 127.0.0.1 -p "$${port:-$(PG_PORT)}" -U "$${user:-{{ project_name }}}" "$${db:-{{ project_name }}}" > "backups/app_$$ts.sql" && echo "✅ 已备份到 backups/app_$$ts.sql"; \
 		fi; \
 	fi
+
+# 恢复备份：make restore FILE=backups/app_20260825_220000.sql（或 .db）
+restore:        ## 恢复备份（FILE=backups/xxx.sql 或 .db）
+	@if [ -z "$(FILE)" ]; then echo "❌ 用法: make restore FILE=backups/app_xxx.sql"; exit 1; fi; \
+	if [ ! -f "$(FILE)" ]; then echo "❌ 文件不存在: $(FILE)"; exit 1; fi; \
+	case "$(FILE)" in \
+	  *.db) mkdir -p data && cp "$(FILE)" data/app.db && echo "✅ SQLite 已恢复到 data/app.db（重启后端生效）";; \
+	  *.sql) user=$$(sed -n 's/^POSTGRES_USER=//p' $(ENV_FILE) | head -1 | awk '{print $$1}'); \
+	    db=$$(sed -n 's/^POSTGRES_DB=//p' $(ENV_FILE) | head -1 | awk '{print $$1}'); \
+	    DROP_CMD="DROP SCHEMA public CASCADE; CREATE SCHEMA public;"; \
+	    if docker compose --env-file $(ENV_FILE) ps --status running postgres 2>/dev/null | grep -q postgres; then \
+	      echo "⚠️  先清空目标库（DROP SCHEMA public）再导入——当前库数据将被备份文件覆盖"; \
+	      docker compose --env-file $(ENV_FILE) exec -T postgres psql -U "$${user:-{{ project_name }}}" -d "$${db:-{{ project_name }}}" -c "$$DROP_CMD" >/dev/null 2>&1; \
+	      docker compose --env-file $(ENV_FILE) exec -T postgres psql -U "$${user:-{{ project_name }}}" -d "$${db:-{{ project_name }}}" -v ON_ERROR_STOP=1 < "$(FILE)" && echo "✅ PG 已恢复（Docker 实例）"; \
+	    else \
+	      if ! command -v psql >/dev/null 2>&1; then echo "❌ 复用本机 PG 恢复需要 psql 客户端；先 make start 再恢复（Docker 模式）"; exit 1; fi; \
+	      echo "⚠️  先清空目标库（DROP SCHEMA public）再导入——当前库数据将被备份文件覆盖"; \
+	      PGPASSWORD=$$(sed -n 's/^POSTGRES_PASSWORD=//p' $(ENV_FILE) | head -1 | awk '{print $$1}') psql -h 127.0.0.1 -p $(PG_PORT) -U "$${user:-{{ project_name }}}" -d "$${db:-{{ project_name }}}" -c "$$DROP_CMD" >/dev/null 2>&1; \
+	      PGPASSWORD=$$(sed -n 's/^POSTGRES_PASSWORD=//p' $(ENV_FILE) | head -1 | awk '{print $$1}') psql -h 127.0.0.1 -p $(PG_PORT) -U "$${user:-{{ project_name }}}" -d "$${db:-{{ project_name }}}" -v ON_ERROR_STOP=1 < "$(FILE)" && echo "✅ PG 已恢复（本机实例）"; \
+	    fi;; \
+	  *) echo "❌ 只支持 .sql / .db 备份文件"; exit 1;; \
+	esac
 
 # 中间件启停：读 .env 实时配置。本机已有 PostgreSQL/Redis 直接复用；缺的才用 Docker 起。
 start:          ## 启动中间件（优先复用本机已运行的 PG/Redis）
@@ -268,6 +354,10 @@ start:          ## 启动中间件（优先复用本机已运行的 PG/Redis）
 		if ! command -v docker >/dev/null 2>&1; then \
 			echo "❌ 中间件[$$services]本机未运行，且未安装 Docker"; \
 			echo "   解决：装 Docker（docker.com），或把 .env 指向本机已运行的中间件"; \
+			exit 1; \
+		fi; \
+		if ! docker info >/dev/null 2>&1; then \
+			echo "❌ Docker 已装但没启动——打开 Docker Desktop，等图标就绪后重试"; \
 			exit 1; \
 		fi; \
 		echo "🐳 Docker 启动缺少的中间件:$$services"; \

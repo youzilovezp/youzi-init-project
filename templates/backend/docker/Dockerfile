@@ -44,6 +44,7 @@ WORKDIR /app
 COPY --from=builder /install /usr/local
 # 精确 COPY 需要的目录（避免把整个 backend 目录扔进镜像）
 COPY --chown=app:app alembic ./alembic
+COPY --chown=app:app alembic.ini ./alembic.ini
 COPY --chown=app:app app ./app
 COPY --chown=app:app 后端说明.md ./
 

@@ -53,10 +53,12 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         count_stmt = select(func.count()).select_from(self.model)
 
         for field, value in filters.items():
-            if value is not None:
-                clause = getattr(self.model, field) == value
-                stmt = stmt.where(clause)
-                count_stmt = count_stmt.where(clause)
+            # 空字符串视为"不过滤"：前端表单常把空输入序列化成 ?xxx= 发过来
+            if value is None or value == "":
+                continue
+            clause = getattr(self.model, field) == value
+            stmt = stmt.where(clause)
+            count_stmt = count_stmt.where(clause)
 
         total = (await db.execute(count_stmt)).scalar_one()
         stmt = stmt.offset((page - 1) * page_size).limit(page_size)
