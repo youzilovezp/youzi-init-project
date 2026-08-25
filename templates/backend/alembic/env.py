@@ -8,10 +8,11 @@ from sqlalchemy import engine_from_config, pool
 from app.core.config import settings
 from app.db.base_class import Base
 
-# 显式导入所有模型，确保 Base.metadata 在 autogenerate 时能看到
-from app.models import User, Role  # noqa: F401  触发模型注册（autogenerate 依赖 Base.metadata）
+# 导入整个 models 包（自动触发 __init__.py 中的 import 链）
+# 比显式列举 User, Role 更鲁棒——add_module 新增模型后只需更新 __init__.py 即可
+import app.models  # noqa: F401  # type: ignore[unused-import]  # side-effect import
 
-_ = (User, Role)  # 防止 Pyright 误报"unused import"
+_ = app.models  # 防止 pyright 静态分析看不到 import 副作用
 
 config = context.config
 # 用 settings.ALEMBIC_DATABASE_URL（psycopg2 同步驱动），

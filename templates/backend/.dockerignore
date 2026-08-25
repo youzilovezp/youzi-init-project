@@ -14,6 +14,8 @@ dist
 build
 tests
 docs
-*.md
+# 注意：不能 *.md 通配——hatchling 构建 wheel 需要 readme = "后端说明.md"
+# 只排除开发者写的 .md，不包括 hatchling 依赖的 readme
+# 如果要排除 dev 文档，手动列：开发指南.md 后端说明.md
 .vscode
 .DS_Store

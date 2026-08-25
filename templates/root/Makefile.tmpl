@@ -36,7 +36,10 @@ backend-test:   ## 后端 pytest
 	cd backend && pytest -q
 
 backend-dev:    ## 启动后端（自动建表 + 种子）
-	cd backend && (test -f .env || cp .env.example .env) && uvicorn app.main:app --reload --host 0.0.0.0 --port {{ backend_port }}
+	cd backend && (test -d .venv || uv venv .venv) && \
+	(test -d .venv && . .venv/bin/activate && uv pip install -e ".[dev]" || pip install -e ".[dev]") && \
+	(test -f .env || cp .env.example .env) && \
+	uvicorn app.main:app --reload --host 0.0.0.0 --port {{ backend_port }}
 
 frontend-dev:   ## 启动前端
 	cd frontend && pnpm dev --port {{ frontend_port }}
@@ -46,14 +49,21 @@ db-shell:       ## 进入 postgres 命令行
 
 # 生成迁移文件：make db-migrate msg="add order"
 db-migrate:     ## 生成新迁移（msg="描述"）
+	@if [ -z "$(MSG)" ]; then \
+		echo "❌ 必须传 MSG: make db-migrate MSG=\"add order\""; \
+		exit 1; \
+	fi
 	cd backend && alembic revision --autogenerate -m "$(MSG)"
 
 # 应用所有迁移
 db-upgrade:     ## 应用所有迁移到最新
 	cd backend && alembic upgrade head
 
-# 回滚一步
+# 回滚一步（⚠️ 危险：会 drop 上一 migration 创建的对象）
 db-downgrade:   ## 回滚最近一步迁移
+	@echo "⚠️ db-downgrade 会撤销上一 migration 的所有变更（drop table / column）"
+	@echo "   仅用于本地调试；生产请用备份恢复（make restore FILE=...）"
+	@read -p "确认回滚? [y/N] " ans && [ "$$ans" = "y" ] || (echo "❌ 已取消"; exit 1)
 	cd backend && alembic downgrade -1
 
 db-reset:       ## ⚠️ 重置数据库（删除所有数据）
@@ -115,21 +125,31 @@ install:        ## 安装后端依赖
 	uv pip install -e ".[dev]" || pip install -e ".[dev]"
 
 backend-dev:    ## 启动后端
-	(test -f .env || cp .env.example .env) && uvicorn app.main:app --reload --host 0.0.0.0 --port {{ backend_port }}
+	(test -d .venv || uv venv .venv) && \
+	(test -d .venv && . .venv/bin/activate && uv pip install -e ".[dev]" || pip install -e ".[dev]") && \
+	(test -f .env || cp .env.example .env) && \
+	uvicorn app.main:app --reload --host 0.0.0.0 --port {{ backend_port }}
 
 db-shell:       ## 进入 postgres 命令行
 	docker compose exec -T postgres env PGPASSWORD=$$POSTGRES_PASSWORD psql -U {{ project_name }} -d {{ project_name }}
 
 # 生成迁移文件：make db-migrate msg="add order"
 db-migrate:     ## 生成新迁移（msg="描述"）
+	@if [ -z "$(MSG)" ]; then \
+		echo "❌ 必须传 MSG: make db-migrate MSG=\"add order\""; \
+		exit 1; \
+	fi
 	cd backend && alembic revision --autogenerate -m "$(MSG)"
 
 # 应用所有迁移
 db-upgrade:     ## 应用所有迁移到最新
 	cd backend && alembic upgrade head
 
-# 回滚一步
+# 回滚一步（⚠️ 危险：会 drop 上一 migration 创建的对象）
 db-downgrade:   ## 回滚最近一步迁移
+	@echo "⚠️ db-downgrade 会撤销上一 migration 的所有变更（drop table / column）"
+	@echo "   仅用于本地调试；生产请用备份恢复（make restore FILE=...）"
+	@read -p "确认回滚? [y/N] " ans && [ "$$ans" = "y" ] || (echo "❌ 已取消"; exit 1)
 	cd backend && alembic downgrade -1
 
 db-reset:       ## ⚠️ 重置数据库（删除所有数据）
