@@ -261,6 +261,29 @@ install_one_skill() {
             return 1
             ;;
     esac
+
+    # opencode 专属：/ 命令补全入口（opencode 的 "/" 补全读 command/ 目录而非 skills/）
+    if [[ "$INSTALL_DIR" == *".config/opencode/skills"* ]]; then
+        install_opencode_command "$skill_name"
+    fi
+}
+
+# opencode 的 / 补全在 ~/.config/opencode/command/<skill>.md——
+# 内容是一句转发（触发同名 skill），description 从 SKILL.md 同步提取防漂移。
+install_opencode_command() {
+    local skill_name="$1"
+    local cmd_dir
+    cmd_dir="$HOME/.config/opencode/command"
+    local only="${skill_name#yz-init-}"
+    local desc
+    desc=$(sed -n 's/^description: *//p' "$INSTALL_DIR/$skill_name/SKILL.md" | head -1 | cut -d'。' -f1)
+    if [[ -z "$desc" ]]; then
+        desc="youzi 脚手架：$skill_name"
+    fi
+    mkdir -p "$cmd_dir"
+    printf -- '---\ndescription: %s\n---\n\n使用 %s skill，按其 SKILL.md 的流程执行：询问项目显示名与初始管理员密码（均可回车跳过），调用 scripts/init.py <项目名> --only %s 生成项目，按脚本输出提示后续步骤（make dev 启动）。项目名参数：$ARGUMENTS。\n' \
+        "$desc" "$skill_name" "$only" > "$cmd_dir/$skill_name.md"
+    ok "已生成 opencode 命令补全：$cmd_dir/$skill_name.md"
 }
 
 # ---------- install ----------
@@ -337,6 +360,11 @@ do_uninstall() {
             safe_rm "$target"      # 用 safe_rm 区分 symlink / 目录
             ok "已删除 $skill"
             found=1
+        fi
+        # opencode：同步删 / 命令补全文件
+        if [[ "$INSTALL_DIR" == *".config/opencode/skills"* ]]; then
+            local cmd_file="$HOME/.config/opencode/command/$skill.md"
+            [[ -f "$cmd_file" ]] && rm -f "$cmd_file" && ok "已删除命令补全 $skill.md"
         fi
     done
 

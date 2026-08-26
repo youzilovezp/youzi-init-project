@@ -474,3 +474,14 @@ def test_docs_mention_opencode():
     """三份根文档必须提到 opencode（双平台宣传一致）。"""
     for d in [ROOT / "README.md", ROOT / "安装说明.md", ROOT / "使用手册.md"]:
         assert "opencode" in d.read_text().lower(), f"{d.name} 未提及 opencode"
+
+
+def test_install_sh_opencode_command_generation():
+    """opencode / 补全：install 必须生成 command/<skill>.md（卸载同步删）。"""
+    t = (ROOT / "install.sh").read_text()
+    assert "install_opencode_command" in t
+    assert ".config/opencode/command" in t
+    # description 从 SKILL.md 提取（防漂移），非硬编码
+    assert "sed -n " in t and "description:" in t
+    # 卸载同步删 command
+    assert t.count('rm -f "$cmd_file"') >= 1
