@@ -412,6 +412,25 @@ def main() -> int:
         init_git_safely(target_dir)
 
     print("✅ 项目生成完成！")
+    # 多项目提示：端口默认相同，第二个项目必须改（真实占用检测）
+    import socket
+
+    clashes = []
+    for label, port in [
+        ("后端", DEFAULT_BACKEND_PORT),
+        ("前端", DEFAULT_FRONTEND_PORT),
+        ("PostgreSQL", DEFAULT_POSTGRES_PORT),
+    ]:
+        s = socket.socket()
+        s.settimeout(0.5)
+        if s.connect_ex(("127.0.0.1", port)) == 0:
+            clashes.append(f"{label}:{port}")
+        s.close()
+    if clashes:
+        print(f"   ⚠️  检测到端口已被占用：{'、'.join(clashes)}")
+        print(
+            "       多项目并存：改 backend/.env 的 PORT / FRONTEND_PORT / POSTGRES_PORT 为空闲值"
+        )
     print(f"   默认账号：{args.admin_user} / {args.admin_pass}")
     print(f"   后端地址：http://localhost:{DEFAULT_BACKEND_PORT}")
     # 安全提示：默认密码是 admin/admin，本地开发 OK，但生产前必须改

@@ -158,6 +158,8 @@ def _parse_fields(spec: str | None) -> list[dict]:
             }
         ]
 
+    # Windows 换行符会让类型解析出 'str\r'——先统一剥掉，报错信息才不会误导
+    spec = spec.replace("\r\n", ",").replace("\r", ",").replace("\n", ",")
     fields: list[dict] = []
     for raw_item in spec.split(","):
         item = raw_item.strip()
@@ -387,7 +389,7 @@ TEMPLATE_PLACEHOLDERS = {
     "RULES": "[{ name: 'name', required: true, message: '请输入名称', trigger: 'blur' }]",
     "ITEM_FIELDS": "form",
     "ROW_NAME": "row.name",
-    "DATE_FMT": "{{ new Date(scope.row.created_at).toLocaleString() }}",
+    "DATE_FMT": "{{ formatTime(scope.row.created_at) }}",
     "IDX": "{id}",
 }
 
@@ -532,6 +534,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import * as __MODULE__Api from '@/api/__MODULE__'
 import type { __CLS__, __CLS__CreatePayload, __CLS__UpdatePayload } from '@/api/__MODULE__'
+import { formatTime } from '@/utils/format'
 
 const loading = ref(false)
 const tableData = ref<__CLS__[]>([])

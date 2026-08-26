@@ -124,6 +124,20 @@ def _diagnose_alembic_error(output: str) -> str:
       4. 其他
     """
     text = output.lower()
+    if "already exists" in text:
+        return (
+            "❌ 迁移报「对象已存在」——alembic 版本与实际表结构错位。\n"
+            "   解决：备份后重置迁移状态——\n"
+            "     PG：make stop && docker compose down --volumes && make start\n"
+            "     SQLite：删 backend/data/app.db 后重启后端\n"
+            "   （⚠️ 清库操作；backups/ 有备份先 make restore 恢复）"
+        )
+    if "near \"alter\"" in text or "alter" in text and "syntax error" in text:
+        return (
+            "❌ SQLite 不支持直接 ALTER 改列类型。\n"
+            "   解决（开发库）：make backup 后删 backend/data/app.db，改完 model 重启重建；\n"
+            "   生产 PG 库不受此限制。"
+        )
     if "password authentication failed" in text:
         return (
             "❌ 数据库密码认证失败。按顺序试：\n"
@@ -184,7 +198,7 @@ async def create_initial_data() -> None:
     生产环境（APP_ENV=prod）**只创建 admin + 3 个角色**，不创建 demo 用户。
     这样可以避免 Demo@123 这种公开凭据进入生产 DB。
 
-    - admin / 随机密码（启动时控制台打印）
+    - admin / 默认 admin（--admin-pass 可指定）
     - manager / alice / bob 仅 dev 环境创建（dev 默认密码 Demo@123）
     """
     async with async_session() as session:
@@ -315,22 +329,25 @@ async def init_db() -> None:
             # `make db-migrate MSG="add xxx"` 能正常生成增量迁移（不会空）。
             # 注意：基线本身的 DDL 不进迁移链——这是刻意取舍（create_all 直建），
             # 换库重建时同样走 create_all，无需回放基线迁移。
-            logger.info("📦 首次启动：create_all + stamp 基线")
+            logger.info("📦 首次启动：create_all + stamp head")
             try:
                 await create_tables()
-                # stamp 到脚手架预置的基线迁移（0001_baseline）。
-                # 不能用 "head"：空迁移目录时无 head 可打（静默不写 alembic_version），
-                # 后续 autogenerate 会因版本未知重复生成全量基线。
-                await _alembic_cmd("stamp", "0001_baseline", success_msg="✅ 已标记迁移基线")
+                # stamp 到当前 head（versions/ 预置了 0001_baseline，head 永不为空）。
+                # 不能写死 "0001_baseline"：克隆已含增量迁移的项目（models 已注册）
+                # 时，create_all 建出的是 head 态表结构，stamp 到 baseline 会让后续
+                # upgrade 重放增量迁移 → "table already exists" 死循环。
+                await _alembic_cmd("stamp", "head", success_msg="✅ 已标记迁移基线（stamp head）")
             except Exception as exc:
                 # 走中文诊断（认证失败/连不上等原因在这里也能精确翻译）
                 logger.error(_diag_once(_diagnose_alembic_error(f"{type(exc).__name__}: {exc}")))
         elif await _tables_missing_but_versioned():
             # 陷阱场景：alembic_version 存在但业务表没了（如空库直接 upgrade 过 /
             # 手动 drop 过表）。upgrade 分支只会空转，API 全 500 且无提示。
-            logger.warning("⚠️ 检测到 alembic_version 存在但 users 表缺失——降级为 create_all 重建表结构")
+            logger.warning("⚠️ 检测到 alembic_version 存在但 users 表缺失——降级为 create_all 重建表结构（原数据已丢失，如有备份可 make restore 恢复）")
             try:
                 await create_tables()
+                # 重建后必须重新 stamp：否则版本行指向的迁移与实际表结构错位
+                await _alembic_cmd("stamp", "head", success_msg="✅ 重建后已重新标记迁移版本")
             except Exception as exc:
                 logger.error(_diag_once(_diagnose_alembic_error(f"{type(exc).__name__}: {exc}")))
         else:

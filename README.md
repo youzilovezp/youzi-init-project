@@ -4,11 +4,12 @@
 
 # 🍊 youzi-init-project · 一站式项目初始化工具
 
-**给非技术背景的宝宝：`一条命令` → 完整可跑的管理系统**
+**给非技术背景的宝宝：`一条命令` → 完整可跑的管理系统**（支持 Claude Code 与 opencode）
 
 ![License](https://img.shields.io/badge/License-MIT-orange.svg)
 ![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)
 ![Claude Code](https://img.shields.io/badge/Claude%20Code-Skill-blueviolet.svg)
+![opencode](https://img.shields.io/badge/opencode-Skill-green.svg)
 
 [📖 使用手册](使用手册.md) · [📦 安装说明](安装说明.md) · [⚙️ SKILL 源码](templates/skills/admin/SKILL.md)
 
@@ -18,8 +19,10 @@
 
 ## 🚀 30 秒上手
 
+> 还没装脚手架？先看 [📦 安装说明](安装说明.md)（2 条命令，约 3 分钟），装完再回来。
+
 ```bash
-# 1. 在 Claude Code 里输入（项目目录可随便换）
+# 1. 在 Claude Code 或 opencode 里输入（项目目录可随便换）
 /yz-init-admin my-app
 
 # 2. 按提示回答（可全回车跳过）→ my-app/ 生成
@@ -36,7 +39,7 @@ cd my-app && make dev
 
 ## 🤔 这是什么？
 
-**一个 Claude Code 的脚手架 skill**：你说一个名字，Claude 自动把完整的管理系统代码、配置、文档一次性生成到本地。
+**一个 AI 编码工具的脚手架 skill**（Claude Code / opencode 双平台）：你说一个名字，AI 自动把完整的管理系统代码、配置、文档一次性生成到本地。
 
 ```
 你输入：/yz-init-admin my-app
@@ -70,7 +73,7 @@ Claude 做：
 | **`server`** | 🔧 接已有前端，加后端 | 后端 + 文档 | `make dev` |
 | **`ui`** | 🎨 接已有后端，加前端 | 纯前端 + 文档 | `pnpm dev` |
 
-> 📌 三种模式都用 `-` 分隔（不用 `:` 是因为 Claude Code 不支持冒号作命令字符）。
+> 📌 三种模式都用 `-` 分隔（不用 `:` 是因为 Claude Code / opencode 均不支持冒号作命令字符）。
 
 ---
 
@@ -131,7 +134,7 @@ python3 backend/scripts/add_module.py order --title "订单管理" \
 
 | 你想了解什么 | 看这里 |
 |---|---|
-| 🆕 第一次装脚手架 | [📦 安装说明.md](安装说明.md) |
+| 🆕 第一次装脚手架（双平台） | [📦 安装说明.md](安装说明.md) |
 | 🚀 装好后怎么用 / 怎么加模块 | [📖 使用手册.md](使用手册.md) |
 | 🛠️ 模板里某个文件改坏了 | [templates/backend/](templates/backend/) 源码 |
 | 🤖 给 Claude 看怎么触发 | [templates/skills/admin/SKILL.md](templates/skills/admin/SKILL.md) |

@@ -6,6 +6,7 @@ import * as roleApi from '@/api/role'
 import type { UserInfo } from '@/api/types'
 import type { Role } from '@/api/role'
 import { useUserStore } from '@/stores/user'
+import { formatTime } from '@/utils/format'
 
 const userStore = useUserStore()
 const loading = ref(false)
@@ -179,7 +180,7 @@ onMounted(() => {
           </template>
         </el-table-column>
         <el-table-column prop="created_at" label="创建时间" width="180">
-          <template #default="{ row }">{{ new Date(row.created_at).toLocaleString() }}</template>
+          <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
         </el-table-column>
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="scope">

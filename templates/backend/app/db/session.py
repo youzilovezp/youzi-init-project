@@ -19,14 +19,24 @@ from sqlalchemy.ext.asyncio import (
 from app.core.config import settings
 from app.db.base_class import Base
 
+
+def _engine_kwargs() -> dict:
+    """SQLite 加 busy 超时（默认 5s 并发写易 database is locked）；PG 用连接池参数。"""
+    if settings.DB_TYPE == "sqlite":
+        return {"connect_args": {"timeout": 15}}
+    return {
+        "pool_size": settings.DB_POOL_SIZE,
+        "max_overflow": settings.DB_MAX_OVERFLOW,
+    }
+
+
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DB_ECHO,
-    pool_size=settings.DB_POOL_SIZE,
-    max_overflow=settings.DB_MAX_OVERFLOW,
     pool_pre_ping=settings.DB_POOL_PRE_PING,  # 防长连接被 PG / NAT 静默断开
     pool_recycle=settings.DB_POOL_RECYCLE,  # 1 小时回收连接
     future=True,
+    **_engine_kwargs(),
 )
 
 async_session = async_sessionmaker(

@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import * as roleApi from '@/api/role'
 import type { Role } from '@/api/role'
+import { formatTime } from '@/utils/format'
 
 const loading = ref(false)
 const tableData = ref<Role[]>([])
@@ -91,7 +92,7 @@ onMounted(fetchData)
         <el-table-column prop="code" label="角色编码" />
         <el-table-column prop="remark" label="备注" />
         <el-table-column prop="created_at" label="创建时间" width="180">
-          <template #default="{ row }">{{ new Date(row.created_at).toLocaleString() }}</template>
+          <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
         </el-table-column>
         <el-table-column label="操作" width="160" fixed="right">
           <template #default="scope">

@@ -98,7 +98,7 @@ HTTP 请求
 |---|---|---|
 | PostgreSQL | 主数据库 | 5432 |
 | Redis | 缓存 / 限流 / JWT 黑名单 | 6379 |
-| adminer | 数据库 UI（看数据） | 8080 |
+| adminer（可选，手动启动） | 数据库 UI（看数据） | 8080 |
 
 > 后续如需扩展 RabbitMQ / MinIO 等，自行加依赖 + docker-compose service。
 
@@ -107,7 +107,7 @@ HTTP 请求
 运行：
 
 ```bash
-python scripts/add_module.py order --title "订单管理"
+python3 scripts/add_module.py order --title "订单管理"
 ```
 
 脚本自动生成 model/schema/crud/router/view/api 六个文件，并提示需要手动注册的 5 处地方。详见 [开发指南](开发指南.md)。

@@ -7,20 +7,20 @@ authors = [{ name = "{{ project_title }} Team" }]
 readme = "后端说明.md"
 dependencies = [
     # Web 框架
-    "fastapi>=0.110.0",
+    "fastapi>=0.110.0,<1.0",     # 锁 <1.0：防 future major break
     # 锁定到 0.30.x：0.31+ 在 lifespan asynccontextmanager 下 yield 后
     # "Application startup complete" 不打印，导致 uvicorn 一直返回 502。
     "uvicorn[standard]>=0.27.0,<0.31.0",
 
     # 数据库（默认 PostgreSQL；DB_TYPE=sqlite 时用 aiosqlite）
-    "sqlalchemy[asyncio]>=2.0.25",
-    "alembic>=1.13.1",
+    "sqlalchemy[asyncio]>=2.0.25,<2.1",  # 锁 <2.1
+    "alembic>=1.13.1,<2.0",      # 锁 <2.0
     "asyncpg>=0.29.0",         # PostgreSQL 异步驱动（默认）
     "psycopg2-binary>=2.9.9",  # PostgreSQL 同步驱动（alembic 用）
     "aiosqlite>=0.20.0",       # SQLite 异步驱动（DB_TYPE=sqlite 时用）
     # 配置 / 安全
-    "pydantic[email]>=2.6.0",   # [email] 提供 EmailStr 校验
-    "pydantic-settings>=2.2.0",
+    "pydantic[email]>=2.6.0,<3.0",   # 锁 <3.0   # [email] 提供 EmailStr 校验
+    "pydantic-settings>=2.2.0,<3.0",  # 锁 <3.0
     "pyjwt>=2.8.0",            # 推荐：pyjwt 比 python-jose 维护更活跃（CVE 风险更低）
     "bcrypt>=4.0",            # 密码哈希（直接用 bcrypt，不再走 passlib）
     "python-multipart>=0.0.9",

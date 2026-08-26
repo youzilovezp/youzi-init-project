@@ -1,7 +1,7 @@
 ---
 name: yz-init-admin
 description: 一键初始化完整的管理系统（后端 + 前端 + PostgreSQL + adminer 数据库 UI + 自动维护表结构；中间件优先复用本机已运行的）。触发命令：「/yz-init-admin」。
-allowed-tools: Bash(python*scripts/init.py*), Read, Write, Edit, Glob, Grep
+allowed-tools: Bash(python*scripts/init.py*), Bash(python*add_module*), Read, Write, Edit, Glob, Grep
 ---
 
 # yz-init-admin 技能
@@ -14,7 +14,7 @@ allowed-tools: Bash(python*scripts/init.py*), Read, Write, Edit, Glob, Grep
 /yz-init-admin my-app
 ```
 
-Claude 会询问项目显示名（可选）和初始管理员密码（可选），其余全部走默认值。确认后自动生成 `项目目录`。
+AI（Claude Code / opencode）会询问项目显示名（可选）和初始管理员密码（可选），其余全部走默认值。确认后自动生成 `项目目录`。
 
 ## 默认配置（用户不需要选）
 

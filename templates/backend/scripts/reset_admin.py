@@ -57,6 +57,12 @@ async def main() -> int:
             stmt = select(User).where(User.username == args.username)
             result = await session.execute(stmt)
             user = result.scalar_one_or_none()
+            if user is None:
+                print(f"❌ 用户不存在：{args.username}")
+                return 1
+            user.password_hash = hash_password(new_password)
+            user.is_active = True
+            await session.commit()
     except Exception as exc:
         print(
             "❌ 数据库不可用或未初始化（先跑一次 make backend-dev 让后端自动建表）",
@@ -64,12 +70,6 @@ async def main() -> int:
         )
         print(f"   原因：{type(exc).__name__}: {str(exc)[:200]}", file=sys.stderr)
         return 1
-        if user is None:
-            print(f"❌ 用户不存在：{args.username}")
-            return 1
-        user.password_hash = hash_password(new_password)
-        user.is_active = True
-        await session.commit()
 
     print("✅ 管理员密码已重置")
     print(f"   用户名：{args.username}")

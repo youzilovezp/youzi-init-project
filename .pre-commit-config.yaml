@@ -26,6 +26,16 @@ repos:
     hooks:
       - id: ruff
         args: ["--fix"]
-        files: "^(scripts/|templates/)"
+        files: "^(scripts/|templates/|tests/)"
       - id: ruff-format
-        files: "^(scripts/|templates/)"
+        files: "^(scripts/|templates/|tests/)"
+
+  # 脚手架回归测试：历轮已修 bug 的永久断言（0.7s，零网络零 Docker）
+  - repo: local
+    hooks:
+      - id: scaffold-regression
+        name: scaffold regression tests (37 assertions)
+        entry: python3 -m pytest tests/ -q
+        language: system
+        pass_filenames: false
+        files: "^(scripts/|templates/|tests/|使用手册|README|安装说明)"

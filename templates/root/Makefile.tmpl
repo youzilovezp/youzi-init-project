@@ -107,7 +107,7 @@ backup:         ## 备份数据库到 backups/（PG 用 pg_dump；SQLite 复制�
 	dbtype=$$(sed -n 's/^DB_TYPE=//p' $(ENV_FILE) 2>/dev/null | head -1); \
 	if [ "$${dbtype:-postgresql}" = "sqlite" ]; then \
 		if [ -f backend/data/app.db ]; then \
-			cp backend/data/app.db "backups/app_$$ts.db" && echo "✅ 已备份到 backups/app_$$ts.db"; \
+			python3 -c "import sqlite3; sqlite3.connect('backend/data/app.db').backup(sqlite3.connect('backups/app_$$ts.db'))" && echo "✅ 已备份到 backups/app_$$ts.db"; \
 		else \
 			echo "ℹ️  还没有数据库文件（首次启动后自动生成）"; \
 		fi; \
@@ -130,7 +130,7 @@ restore:        ## 恢复备份（FILE=backups/xxx.sql 或 .db）
 	@if [ -z "$(FILE)" ]; then echo "❌ 用法: make restore FILE=backups/app_xxx.sql"; exit 1; fi; \
 	if [ ! -f "$(FILE)" ]; then echo "❌ 文件不存在: $(FILE)"; exit 1; fi; \
 	case "$(FILE)" in \
-	  *.db) cp "$(FILE)" backend/data/app.db && echo "✅ SQLite 已恢复到 backend/data/app.db（重启后端生效）";; \
+	  *.db) python3 -c "import sqlite3,shutil; shutil.copy('$(FILE)','backend/data/app.db'); sqlite3.connect('backend/data/app.db').execute('PRAGMA integrity_check')" && echo "✅ SQLite 已恢复到 backend/data/app.db（必须重启后端进程生效——旧进程持有旧文件句柄）";; \
 	  *.sql) user=$$(sed -n 's/^POSTGRES_USER=//p' $(ENV_FILE) | head -1 | awk '{print $$1}'); \
 	    db=$$(sed -n 's/^POSTGRES_DB=//p' $(ENV_FILE) | head -1 | awk '{print $$1}'); \
 	    DROP_CMD="DROP SCHEMA public CASCADE; CREATE SCHEMA public;"; \
@@ -280,7 +280,7 @@ backup:         ## 备份数据库到 backups/（PG 用 pg_dump；SQLite 复制�
 	dbtype=$$(sed -n 's/^DB_TYPE=//p' $(ENV_FILE) 2>/dev/null | head -1); \
 	if [ "$${dbtype:-postgresql}" = "sqlite" ]; then \
 		if [ -f data/app.db ]; then \
-			cp data/app.db "backups/app_$$ts.db" && echo "✅ 已备份到 backups/app_$$ts.db"; \
+			python3 -c "import sqlite3; sqlite3.connect('data/app.db').backup(sqlite3.connect('backups/app_$$ts.db'))" && echo "✅ 已备份到 backups/app_$$ts.db"; \
 		else \
 			echo "ℹ️  还没有数据库文件（首次启动后自动生成）"; \
 		fi; \
@@ -303,7 +303,7 @@ restore:        ## 恢复备份（FILE=backups/xxx.sql 或 .db）
 	@if [ -z "$(FILE)" ]; then echo "❌ 用法: make restore FILE=backups/app_xxx.sql"; exit 1; fi; \
 	if [ ! -f "$(FILE)" ]; then echo "❌ 文件不存在: $(FILE)"; exit 1; fi; \
 	case "$(FILE)" in \
-	  *.db) mkdir -p data && cp "$(FILE)" data/app.db && echo "✅ SQLite 已恢复到 data/app.db（重启后端生效）";; \
+	  *.db) mkdir -p data && python3 -c "import sqlite3,shutil; shutil.copy('$(FILE)','data/app.db'); sqlite3.connect('data/app.db').execute('PRAGMA integrity_check')" && echo "✅ SQLite 已恢复到 data/app.db（必须重启后端进程生效——旧进程持有旧文件句柄）";; \
 	  *.sql) user=$$(sed -n 's/^POSTGRES_USER=//p' $(ENV_FILE) | head -1 | awk '{print $$1}'); \
 	    db=$$(sed -n 's/^POSTGRES_DB=//p' $(ENV_FILE) | head -1 | awk '{print $$1}'); \
 	    DROP_CMD="DROP SCHEMA public CASCADE; CREATE SCHEMA public;"; \

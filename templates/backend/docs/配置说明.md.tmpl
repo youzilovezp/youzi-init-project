@@ -97,8 +97,8 @@ JSON 数组，按需添加域名。**生产环境只保留可信域名**（删�
 | `AUTO_INIT_DB` | `true` | 首次启动 `create_all` 建表（**不**自动 stamp）；后续启动执行 `alembic upgrade head` |
 | `AUTO_SEED_DATA` | `true` | 自动插入种子数据（默认管理员 + demo 用户 + 角色，dev 环境） |
 
-> 首次启动**故意不 stamp alembic**，避免后续 `make db-migrate msg="add xxx"` 生成空迁移。
-> 需要初始化迁移基线时手动跑：`make db-migrate msg="init"`，再 `make db-upgrade`。
+> 首次启动**故意不 stamp alembic**，避免后续 `make db-migrate MSG="add xxx"` 生成空迁移。
+> 迁移基线由首次启动自动建立（stamp 0001_baseline），加模块直接 `make db-migrate MSG="add xxx"`。
 > 关闭 `AUTO_INIT_DB` 后：需手动跑 `alembic upgrade head`。
 
 ## 生产环境建议（一次性配置）

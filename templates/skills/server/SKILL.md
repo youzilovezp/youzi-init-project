@@ -1,7 +1,7 @@
 ---
 name: yz-init-server
 description: 一键初始化后端 API 工程（FastAPI + PostgreSQL + adminer 数据库 UI + 自动维护表结构；中间件优先复用本机已运行的）。触发命令：「/yz-init-server」。
-allowed-tools: Bash(python*scripts/init.py*), Read, Write, Edit, Glob, Grep
+allowed-tools: Bash(python*scripts/init.py*), Bash(python*add_module*), Read, Write, Edit, Glob, Grep
 ---
 
 # yz-init-server 技能
@@ -14,7 +14,7 @@ allowed-tools: Bash(python*scripts/init.py*), Read, Write, Edit, Glob, Grep
 /yz-init-server my-api
 ```
 
-Claude 会询问项目显示名（可选）和初始管理员密码（可选），其余全部走默认值。
+AI（Claude Code / opencode）会询问项目显示名（可选）和初始管理员密码（可选），其余全部走默认值。
 
 ## 默认配置
 

@@ -28,7 +28,7 @@ cd .. && make backend-dev
 ## 启动后日志会打印
 
 ```
-🔑 默认管理员密码：xxx（生产环境请立即修改！）
+🔑 默认管理员密码：admin（生产环境请立即修改！）
 ✅ demo 用户已创建：manager / alice / bob（仅 dev / test 环境，密码均为 Demo@123；prod 跳过）
 ```
 
@@ -62,7 +62,7 @@ backend/
 ## 加新业务模块
 
 ```bash
-python scripts/add_module.py order --title "订单管理"
+python3 scripts/add_module.py order --title "订单管理"
 ```
 
 脚本自动生成后端 4 个文件（model/schema/crud/router；admin 模式检测到前端工程时再生成 view/api），并打印你需要手动注册的地方。

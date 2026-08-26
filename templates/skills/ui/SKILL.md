@@ -14,7 +14,7 @@ allowed-tools: Bash(python*scripts/init.py*), Read, Write, Edit, Glob, Grep
 /yz-init-ui my-web
 ```
 
-Claude 会询问项目显示名（可选），其余走默认值。
+AI（Claude Code / opencode）会询问项目显示名（可选），其余走默认值。
 
 ## 默认配置
 

@@ -1,18 +1,17 @@
 #!/usr/bin/env bash
 # ============================================================================
-# youzi-init-project 一键安装 / 卸载 / 更新 / 状态查询
+# youzi-init-project 一键安装 / 卸载 / 更新 / 状态查询（Claude Code + opencode 双平台）
 #
 # 用法：
-#   ./install.sh install    # 安装三个独立 skill
-#   ./install.sh uninstall  # 卸载
-#   ./install.sh update     # 刷新符号链接
-#   ./install.sh status     # 查看安装状态
-#   ./install.sh help       # 显示帮助
+#   ./install.sh install            # 同时安装到 Claude Code + opencode（自动探测）
+#   ./install.sh install --platform claude    # 只装 Claude Code
+#   ./install.sh install --platform opencode  # 只装 opencode
+#   ./install.sh uninstall / update / status  # 同理，作用于全部已装平台
 #
-# 安装后会创建三个独立 skill：
-#   ~/.claude/skills/yz-init-admin/    → /yz-init-admin（完整前后端）
-#   ~/.claude/skills/yz-init-server/   → /yz-init-server（后端 + 中间件）
-#   ~/.claude/skills/yz-init-ui/       → /yz-init-ui（仅前端）
+# 安装位置：
+#   Claude Code: ~/.claude/skills/yz-init-{admin,server,ui}/
+#   opencode:    ~/.config/opencode/skills/yz-init-{admin,server,ui}/
+#   （opencode 里用 /yz-init-admin 触发，方式与 Claude Code 相同）
 #
 # 兼容：macOS（BSD tools）+ Linux（GNU tools）
 # 输出：纯文本 + emoji，不使用 ANSI 转义
@@ -50,9 +49,39 @@ SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd -P)"
 
 # ---------- 默认配置 ----------
 SKILLS=(yz-init-admin yz-init-server yz-init-ui)
-DEFAULT_DIR="$HOME/.claude/skills"
-INSTALL_DIR="$DEFAULT_DIR"
 INSTALL_MODE="link"  # link | copy
+PLATFORM="all"       # all | claude | opencode
+
+# 平台 → 安装目录映射。探测目录存在才算该平台在用。
+platform_dir() {
+    case "$1" in
+        claude)   echo "$HOME/.claude/skills" ;;
+        opencode) echo "$HOME/.config/opencode/skills" ;;
+    esac
+}
+
+# 实际要处理的平台列表（all = 两个目录存在即装；显式指定 = 强制单平台）
+active_platforms() {
+    if [[ "$PLATFORM" != "all" ]]; then
+        echo "$PLATFORM"
+        return
+    fi
+    local found=0
+    for pf in claude opencode; do
+        local dir
+        dir="$(platform_dir "$pf")"
+        # 目录存在 或 父工具明显在用（opencode 有 command/ 或 agent/ 也算）→ 装这里
+        if [[ -d "$dir" || -d "$(dirname "$dir")" ]]; then
+            echo "$pf"
+            found=1
+        fi
+    done
+    # 一个都没探测到：默认装 Claude Code（报错时用户可 --platform 指定）
+    [[ $found -eq 0 ]] && echo claude
+}
+
+# 每个平台独立的 INSTALL_DIR（在 install/uninstall/update/status 循环里赋值）
+INSTALL_DIR=""
 
 # ---------- 帮助 ----------
 print_help() {
@@ -63,28 +92,26 @@ youzi-init-project - 一键安装 / 卸载 / 更新
   $(basename "$0") <command> [options]
 
 命令:
-  install      安装三个 Skill 到 Claude Code
-               ~/.claude/skills/yz-init-admin
-               ~/.claude/skills/yz-init-server
-               ~/.claude/skills/yz-init-ui
-  uninstall    卸载已安装的 Skill
+  install      安装三个 Skill 到全部已装平台（Claude Code + opencode 自动探测）
+               ~/.claude/skills/yz-init-{admin,server,ui}/
+               ~/.config/opencode/skills/yz-init-{admin,server,ui}/
+  uninstall    卸载已安装的 Skill（全部平台）
   update       刷新符号链接（link 模式自动生效）
-  status       查看三个 Skill 的安装状态
+  status       查看三个 Skill 的安装状态（全部平台）
   help         显示本帮助
 
-选项（适用于 install/update）:
-  --dir <path>        自定义安装目录（默认: $DEFAULT_DIR）
+选项（适用于 install/update/uninstall/status）:
+  --platform <claude|opencode|all>  目标平台（默认 all=自动探测）
+  --dir <path>        自定义安装目录（覆盖默认；单平台时生效）
   --mode <link|copy>  安装方式（默认: link）
                       link - 共享 scripts/templates 符号链接
                       copy - 完整复制所有文件
 
 示例:
-  $(basename "$0") install                     # 默认安装三个 skill
-  $(basename "$0") install --mode copy         # 复制模式
-  $(basename "$0") install --dir ~/my-skills   # 自定义目录
-  $(basename "$0") update                      # 刷新安装
-  $(basename "$0") uninstall                   # 卸载
-  $(basename "$0") status                      # 查看状态
+  $(basename "$0") install                          # 双平台自动探测安装
+  $(basename "$0") install --platform opencode      # 只装 opencode
+  $(basename "$0") install --mode copy              # 复制模式
+  $(basename "$0") status                           # 双平台状态
 
 EOF
 }
@@ -133,17 +160,40 @@ parse_args() {
                 INSTALL_MODE="$2"
                 shift 2
                 ;;
+            --platform=*)
+                PLATFORM="${1#*=}"
+                shift
+                ;;
+            --platform)
+                if [[ $# -lt 2 ]]; then
+                    err "--platform 需要一个参数值（claude / opencode / all）"
+                    exit 1
+                fi
+                PLATFORM="$2"
+                shift 2
+                ;;
             -h|--help) print_help; exit 0 ;;
             *)
                 err "未知参数: $1"
                 print_help
                 exit 1
                 ;;
-        esac
+            esac
     done
 
     # 规范化：去掉尾斜杠，避免路径出现 //yz-init-admin 这种双斜杠
     INSTALL_DIR="${INSTALL_DIR%/}"
+
+    if [[ "$PLATFORM" != "all" && "$PLATFORM" != "claude" && "$PLATFORM" != "opencode" ]]; then
+        err "--platform 必须是 claude / opencode / all，得到: $PLATFORM"
+        exit 1
+    fi
+
+    # --dir 只对单平台明确；all 时目录归属歧义，直接要求指定平台
+    if [[ -n "$INSTALL_DIR" && "$PLATFORM" == "all" ]]; then
+        err "--dir 需要配合 --platform claude 或 --platform opencode 使用（all 时目录归属不明确）"
+        exit 1
+    fi
 }
 
 # ---------- 安全覆盖 prompt（非 TTY 时默认 N，绝不覆盖用户数据） ----------
@@ -199,12 +249,12 @@ install_one_skill() {
         link)
             ln -s "$SCRIPT_DIR/scripts" "$target/scripts"
             ln -s "$SCRIPT_DIR/templates" "$target/templates"
-            ok "已创建 $skill_name（符号链接）"
+            ok "已创建 ${skill_name}（符号链接）"
             ;;
         copy)
             cp -R "$SCRIPT_DIR/scripts" "$target/scripts"
             cp -R "$SCRIPT_DIR/templates" "$target/templates"
-            ok "已创建 $skill_name（完整复制）"
+            ok "已创建 ${skill_name}（完整复制）"
             ;;
         *)
             err "未知安装模式：$INSTALL_MODE"
@@ -221,7 +271,7 @@ do_install() {
     if [[ ! -d "$SCRIPT_DIR/scripts" || ! -d "$SCRIPT_DIR/templates" ]]; then
         err "当前目录不是有效的 skill 仓库：$SCRIPT_DIR"
         err "缺少 scripts/ 或 templates/ 目录"
-        exit 1
+        return 1    # return 而非 exit：不中断其它平台的处理
     fi
 
     # 关键修复：原脚本只检查 admin 的 SKILL.md，
@@ -243,7 +293,7 @@ do_install() {
         for p in "${missing_skill_md[@]}"; do
             err "  - $p"
         done
-        exit 1
+        return 1    # return 而非 exit：源仓库缺失是全局问题，但仍让其它平台走完
     fi
 
     info "源目录：$SCRIPT_DIR"
@@ -262,13 +312,13 @@ do_install() {
     title "下一步"
     hr
     cat <<'EOF'
-  1. 重启 Claude Code（已运行的会话需要重启以加载 Skill）
+  1. 重启 AI 工具（Claude Code / opencode，已运行的会话需要重启以加载 Skill）
 
-  2. 在 Claude Code 中输入以下命令之一：
+  2. 在 Claude Code 或 opencode 里输入同样命令：
 
-        /yz-init-admin my-admin     完整前后端 + 中间件
-        /yz-init-server my-api     后端 + 中间件
-        /yz-init-ui my-web         仅前端
+        /yz-init-admin my-admin     完整前后端
+        /yz-init-server my-api      后端
+        /yz-init-ui my-web          仅前端
 
   3. 按对话中的提示回答问题，Skill 会自动生成项目
 
@@ -292,7 +342,7 @@ do_uninstall() {
 
     if [[ $found -eq 0 ]]; then
         info "未安装任何 skill"
-        exit 0
+        return 0
     fi
 
     cat <<EOF
@@ -365,13 +415,13 @@ do_update() {
             cp -R "$SCRIPT_DIR/scripts" "$target/scripts"
             cp -R "$SCRIPT_DIR/templates" "$target/templates"
             cp "$SCRIPT_DIR/templates/skills/${skill#yz-init-}/SKILL.md" "$target/SKILL.md"
-            ok "已更新 $skill（复制模式，旧版本备份到 .*.bak.*）"
+            ok "已更新 ${skill}（复制模式，旧版本备份到 .*.bak.*）"
         fi
     done
 
     if [[ $found -eq 0 ]]; then
         warn "未安装任何 skill，请先执行 install"
-        exit 1
+        return 0
     fi
 }
 
@@ -464,22 +514,52 @@ do_status() {
     fi
 }
 
-# ---------- 主入口 ----------
+# ---------- 主入口（平台循环）----------
+platform_label() {
+    case "$1" in
+        claude)   echo "Claude Code" ;;
+        opencode) echo "opencode" ;;
+    esac
+}
+
 main() {
     parse_args "$@"
 
-    case "$COMMAND" in
-        install)   do_install ;;
-        uninstall) do_uninstall ;;
-        update)    do_update ;;
-        status)    do_status ;;
-        help)      print_help ;;
-        *)
-            err "未知命令：$COMMAND"
-            print_help
-            exit 1
-            ;;
-    esac
+    # help 不依赖平台目录，直接输出
+    if [[ "$COMMAND" == "help" || "$COMMAND" == "-h" ]]; then
+        print_help
+        exit 0
+    fi
+
+    local failed=0
+    local platforms
+    platforms="$(active_platforms)" || true
+    if [[ -z "${platforms//\n/}" ]]; then
+        platforms="claude"
+    fi
+
+    local pf
+    for pf in $platforms; do
+        # --dir 已在 parse_args 校验过必须搭配单平台；默认按平台取目录
+        if [[ -z "$INSTALL_DIR" ]]; then
+            INSTALL_DIR="$(platform_dir "$pf")"
+        fi
+        title "$(platform_label "$pf") -- $INSTALL_DIR"
+        case "$COMMAND" in
+            install)   do_install   || failed=1 ;;
+            uninstall) do_uninstall || failed=1 ;;
+            update)    do_update    || failed=1 ;;
+            status)    do_status    || failed=1 ;;
+            *)
+                err "未知命令：$COMMAND"
+                print_help
+                exit 1
+                ;;
+        esac
+        INSTALL_DIR=""  # 下一平台恢复默认目录
+    done
+
+    exit $failed
 }
 
 main "$@"
