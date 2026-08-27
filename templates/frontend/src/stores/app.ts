@@ -17,8 +17,9 @@ export const THEME_PRESETS: ThemePreset[] = [
   { name: '黛青蓝', color: '#0ea5e9' },
 ]
 
-/** 生成 primary 的 light-3/5/7/8/9 与 dark-2 变量并写到 documentElement */
-function applyPrimaryColor(color: string) {
+/** 生成 primary 的 light-3/5/7/8/9 与 dark-2 变量并写到 documentElement
+ *  暗色下 light-N 改与 EP 暗色底 #141414 混合（内联变量优先级高于 html.dark 选择器，需自查暗色） */
+function applyPrimaryColor(color: string, dark: boolean) {
   const root = document.documentElement
   const mix = (c: string, t: string, ratio: number) => {
     const hex = (s: string): [number, number, number] => [
@@ -33,11 +34,11 @@ function applyPrimaryColor(color: string) {
       .padStart(2, '0')
     return `#${m(r1, r2)}${m(g1, g2)}${m(b1, b2)}`
   }
-  const white = '#ffffff'
+  const base = dark ? '#141414' : '#ffffff'
   const black = '#000000'
   root.style.setProperty('--el-color-primary', color)
   for (const i of [3, 5, 7, 8, 9]) {
-    root.style.setProperty(`--el-color-primary-light-${i}`, mix(color, white, 1 - i / 10))
+    root.style.setProperty(`--el-color-primary-light-${i}`, mix(color, base, 1 - i / 10))
   }
   root.style.setProperty('--el-color-primary-dark-2', mix(color, black, 0.8))
 }
@@ -90,8 +91,12 @@ export const useAppStore = defineStore('app', () => {
     primaryColor.value = color
   }
 
-  // 初始化 + 跟随变化应用变量（sync：测试与首帧同步可见）
-  watch(primaryColor, applyPrimaryColor, { immediate: true, flush: 'sync' })
+  // 初始化 + 跟随变化应用变量（sync：测试与首帧同步可见；暗色切换时 light 系改与暗色底混合）
+  watch(
+    [primaryColor, isDark],
+    ([c, d]) => applyPrimaryColor(c, d),
+    { immediate: true, flush: 'sync' },
+  )
 
   return {
     sidebarCollapsed,
