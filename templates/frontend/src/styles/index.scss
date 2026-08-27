@@ -1,4 +1,5 @@
 /* 全局样式 */
+@import './tailwind.css';
 
 * {
   box-sizing: border-box;
@@ -10,19 +11,22 @@ body {
     Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   color: #333;
-  background: #f0f2f5;
+  background: var(--el-bg-color-page);
 }
 
 a {
-  color: #1890ff;
+  color: var(--el-color-primary);
   text-decoration: none;
 }
 a:hover {
   text-decoration: underline;
 }
 
+/* 页面统一容器：add_module.py 生成的业务页面依赖此类 */
 .page {
-  .el-card {
-    border-radius: 4px;
-  }
+  background: var(--el-bg-color);
+  border-radius: var(--radius-card);
+  padding: 16px;
+  border: 1px solid var(--el-border-color-lighter);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.04);
 }

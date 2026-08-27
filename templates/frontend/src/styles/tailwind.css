@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+/* dark 变体绑定 html.dark class（与 EP 官方暗色、vueuse useDark 一致） */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* 设计令牌：品牌色引用 EP 变量，改主题色时 Tailwind 工具类自动跟随 */
+@theme {
+  --color-primary: var(--el-color-primary);
+  --color-bg-page: var(--el-bg-color-page);
+  --color-bg-card: var(--el-bg-color);
+  --color-text: var(--el-text-color-primary);
+  --color-text-secondary: var(--el-text-color-secondary);
+  --color-border: var(--el-border-color-light);
+  --radius-card: 12px;
+}
