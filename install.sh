@@ -1,17 +1,22 @@
 #!/usr/bin/env bash
 # ============================================================================
-# youzi-init-project 一键安装 / 卸载 / 更新 / 状态查询（Claude Code + opencode 双平台）
+# youzi-init-project 一键安装 / 卸载 / 更新 / 状态查询
+# 支持 4 个 AI 平台：Claude Code / opencode / Codex / EasyCode（自动探测）
 #
 # 用法：
-#   ./install.sh install            # 同时安装到 Claude Code + opencode（自动探测）
-#   ./install.sh install --platform claude    # 只装 Claude Code
-#   ./install.sh install --platform opencode  # 只装 opencode
-#   ./install.sh uninstall / update / status  # 同理，作用于全部已装平台
+#   ./install.sh install                        # 安装到全部已装的 AI 工具
+#   ./install.sh install --platform claude      # 只装 Claude Code
+#   ./install.sh install --platform opencode    # 只装 opencode
+#   ./install.sh install --platform codex       # 只装 Codex
+#   ./install.sh install --platform easycode    # 只装 EasyCode
+#   ./install.sh uninstall / update / status    # 同理，作用于全部已装平台
 #
-# 安装位置：
+# 安装位置（AgentSkills 标准，4 平台同一套 SKILL.md）：
 #   Claude Code: ~/.claude/skills/yz-init-{admin,server,ui}/
 #   opencode:    ~/.config/opencode/skills/yz-init-{admin,server,ui}/
-#   （opencode 里用 /yz-init-admin 触发，方式与 Claude Code 相同）
+#                + ~/.config/opencode/command/yz-init-*.md（/ 补全入口）
+#   Codex:       ~/.codex/skills/yz-init-{admin,server,ui}/
+#   EasyCode:    ~/.easycode/skills/yz-init-{admin,server,ui}/
 #
 # 兼容：macOS（BSD tools）+ Linux（GNU tools）
 # 输出：纯文本 + emoji，不使用 ANSI 转义
@@ -52,32 +57,39 @@ SKILLS=(yz-init-admin yz-init-server yz-init-ui)
 INSTALL_MODE="link"  # link | copy
 PLATFORM="all"       # all | claude | opencode
 
-# 平台 → 安装目录映射。探测目录存在才算该平台在用。
+# 平台 → 安装目录映射。探测目录（或其父目录）存在才算该平台在用。
+ALL_PLATFORMS="claude opencode codex easycode"
+
 platform_dir() {
     case "$1" in
         claude)   echo "$HOME/.claude/skills" ;;
         opencode) echo "$HOME/.config/opencode/skills" ;;
+        codex)    echo "$HOME/.codex/skills" ;;
+        easycode) echo "$HOME/.easycode/skills" ;;
     esac
 }
 
-# 实际要处理的平台列表（all = 两个目录存在即装；显式指定 = 强制单平台）
+# 实际要处理的平台列表（all = 目录存在即装；显式指定 = 强制单平台）
 active_platforms() {
     if [[ "$PLATFORM" != "all" ]]; then
         echo "$PLATFORM"
         return
     fi
     local found=0
-    for pf in claude opencode; do
-        local dir
+    local pf dir
+    for pf in $ALL_PLATFORMS; do
         dir="$(platform_dir "$pf")"
-        # 目录存在 或 父工具明显在用（opencode 有 command/ 或 agent/ 也算）→ 装这里
+        # 目录存在 或 父工具明显在用（如 ~/.codex / ~/.easycode 存在）→ 装这里
         if [[ -d "$dir" || -d "$(dirname "$dir")" ]]; then
             echo "$pf"
             found=1
         fi
     done
     # 一个都没探测到：默认装 Claude Code（报错时用户可 --platform 指定）
-    [[ $found -eq 0 ]] && echo claude
+    if [[ $found -eq 0 ]]; then
+        echo claude
+    fi
+    return 0    # 末行 [[ ]] && echo 为假时退出码=1，set -e 会误杀调用方
 }
 
 # 每个平台独立的 INSTALL_DIR（在 install/uninstall/update/status 循环里赋值）
@@ -92,26 +104,29 @@ youzi-init-project - 一键安装 / 卸载 / 更新
   $(basename "$0") <command> [options]
 
 命令:
-  install      安装三个 Skill 到全部已装平台（Claude Code + opencode 自动探测）
+  install      安装三个 Skill 到全部已装的 AI 工具（4 平台自动探测）
                ~/.claude/skills/yz-init-{admin,server,ui}/
                ~/.config/opencode/skills/yz-init-{admin,server,ui}/
+               ~/.codex/skills/yz-init-{admin,server,ui}/
+               ~/.easycode/skills/yz-init-{admin,server,ui}/
   uninstall    卸载已安装的 Skill（全部平台）
   update       刷新符号链接（link 模式自动生效）
   status       查看三个 Skill 的安装状态（全部平台）
   help         显示本帮助
 
 选项（适用于 install/update/uninstall/status）:
-  --platform <claude|opencode|all>  目标平台（默认 all=自动探测）
+  --platform <claude|opencode|codex|easycode|all>  目标平台（默认 all=自动探测）
   --dir <path>        自定义安装目录（覆盖默认；单平台时生效）
   --mode <link|copy>  安装方式（默认: link）
                       link - 共享 scripts/templates 符号链接
                       copy - 完整复制所有文件
 
 示例:
-  $(basename "$0") install                          # 双平台自动探测安装
+  $(basename "$0") install                          # 全平台自动探测安装
   $(basename "$0") install --platform opencode      # 只装 opencode
+  $(basename "$0") install --platform codex         # 只装 Codex
   $(basename "$0") install --mode copy              # 复制模式
-  $(basename "$0") status                           # 双平台状态
+  $(basename "$0") status                           # 全平台状态
 
 EOF
 }
@@ -166,7 +181,7 @@ parse_args() {
                 ;;
             --platform)
                 if [[ $# -lt 2 ]]; then
-                    err "--platform 需要一个参数值（claude / opencode / all）"
+                    err "--platform 需要一个参数值（claude / opencode / codex / easycode / all）"
                     exit 1
                 fi
                 PLATFORM="$2"
@@ -184,14 +199,17 @@ parse_args() {
     # 规范化：去掉尾斜杠，避免路径出现 //yz-init-admin 这种双斜杠
     INSTALL_DIR="${INSTALL_DIR%/}"
 
-    if [[ "$PLATFORM" != "all" && "$PLATFORM" != "claude" && "$PLATFORM" != "opencode" ]]; then
-        err "--platform 必须是 claude / opencode / all，得到: $PLATFORM"
-        exit 1
-    fi
+    case "$PLATFORM" in
+        all|claude|opencode|codex|easycode) ;;
+        *)
+            err "--platform 必须是 claude / opencode / codex / easycode / all，得到: $PLATFORM"
+            exit 1
+            ;;
+    esac
 
     # --dir 只对单平台明确；all 时目录归属歧义，直接要求指定平台
     if [[ -n "$INSTALL_DIR" && "$PLATFORM" == "all" ]]; then
-        err "--dir 需要配合 --platform claude 或 --platform opencode 使用（all 时目录归属不明确）"
+        err "--dir 需要配合 --platform <具体平台> 使用（all 时目录归属不明确）"
         exit 1
     fi
 }
@@ -263,7 +281,7 @@ install_one_skill() {
     esac
 
     # opencode 专属：/ 命令补全入口（opencode 的 "/" 补全读 command/ 目录而非 skills/）
-    if [[ "$INSTALL_DIR" == *".config/opencode/skills"* ]]; then
+    if [[ "$ACTIVE_PLATFORM" == "opencode" ]]; then
         install_opencode_command "$skill_name"
     fi
 }
@@ -344,13 +362,14 @@ do_install() {
     title "下一步"
     hr
     cat <<'EOF'
-  1. 重启 AI 工具（Claude Code / opencode，已运行的会话需要重启以加载 Skill）
+  1. 重启 AI 工具（Claude Code / opencode / Codex / EasyCode，
+     已运行的会话需要重启以加载 Skill）
 
-  2. 在 Claude Code 或 opencode 里输入同样命令：
+  2. 在 AI 工具里输入同样命令：
 
-        /yz-init-admin my-admin     完整前后端
-        /yz-init-server my-api      后端
-        /yz-init-ui my-web          仅前端
+         /yz-init-admin my-admin     完整前后端
+         /yz-init-server my-api      后端
+         /yz-init-ui my-web          仅前端
 
   3. 按对话中的提示回答问题，Skill 会自动生成项目
 
@@ -371,7 +390,7 @@ do_uninstall() {
             found=1
         fi
         # opencode：同步删 / 命令补全文件
-        if [[ "$INSTALL_DIR" == *".config/opencode/skills"* ]]; then
+        if [[ "$ACTIVE_PLATFORM" == "opencode" ]]; then
             local cmd_file="$HOME/.config/opencode/command/$skill.md"
             [[ -f "$cmd_file" ]] && rm -f "$cmd_file" && ok "已删除命令补全 $skill.md"
         fi
@@ -384,8 +403,8 @@ do_uninstall() {
 
     cat <<EOF
 
-  提示：Claude Code 在启动时读取 SKILL.md。
-        如果之前加载过，建议重启 Claude Code。
+  提示：AI 工具一般在启动时读取 SKILL.md。
+        如果之前加载过，建议重启对应工具。
 
 EOF
 }
@@ -508,12 +527,10 @@ do_status() {
     # 环境检查
     echo "  环境检查："
     if command -v python3 >/dev/null 2>&1; then
-        py_ver=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-        py_ok=$(python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)')
-        if [ $? -eq 0 ] 2>/dev/null || python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)'; then
+        if python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)'; then
             echo "    ✅ python3: $(python3 --version 2>&1)"
         else
-            echo "    ⚠️  python3: ${py_ver} 版本过低（需要 3.11+，python.org 下载新版）"
+            echo "    ⚠️  python3: $(python3 --version 2>&1) 版本过低（需要 3.11+，python.org 下载新版）"
         fi
     else
         echo "    ⚠️  python3: 未安装（必须）"
@@ -556,6 +573,8 @@ platform_label() {
     case "$1" in
         claude)   echo "Claude Code" ;;
         opencode) echo "opencode" ;;
+        codex)    echo "Codex" ;;
+        easycode) echo "EasyCode" ;;
     esac
 }
 
@@ -570,13 +589,15 @@ main() {
 
     local failed=0
     local platforms
-    platforms="$(active_platforms)" || true
-    if [[ -z "${platforms//\n/}" ]]; then
+    platforms="$(active_platforms)"
+    # active_platforms 至少回显一个平台；此处仅兜底极端情况（如子 shell 异常）
+    if [[ -z "${platforms//$'\n'/}" ]]; then
         platforms="claude"
     fi
 
     local pf
     for pf in $platforms; do
+        ACTIVE_PLATFORM="$pf"
         # --dir 已在 parse_args 校验过必须搭配单平台；默认按平台取目录
         if [[ -z "$INSTALL_DIR" ]]; then
             INSTALL_DIR="$(platform_dir "$pf")"

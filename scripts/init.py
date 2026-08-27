@@ -71,9 +71,18 @@ def build_context(args: argparse.Namespace) -> dict:
 
 
 # ---------- Jinja rendering ----------
-# 模板目录开发/预览时会本地 npm install，node_modules 绝不能拷进生成项目
-# （否则用户 pnpm install 报 "installed by a different package manager"，生成也变慢）
-EXCLUDED_DIR_NAMES = {"node_modules"}
+# 模板目录开发/预览时会产生本地缓存/虚拟环境，绝不能拷进生成项目
+# （node_modules 会让 pnpm install 报 "installed by a different package manager"）
+EXCLUDED_DIR_NAMES = {
+    "node_modules",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".mypy_cache",
+    ".DS_Store",
+}
 
 
 def render_template(
@@ -331,15 +340,17 @@ def main() -> int:
         print("项目名不能与 skill 模式同名（admin/server/ui）", file=sys.stderr)
         return 1
 
-    # 防御性校验：title / admin_pass 不应包含会破坏 Python 源码或 shell 的字符
-    # （这些值会插入到 .py docstring / .env / docker-compose.yml）
+    # 防御性校验：title / admin_pass 不应包含会破坏 Python 源码 / shell / HTML 的字符
+    # （这些值会插入到 .py docstring / .env / docker-compose.yml / index.html）
     for field_name, value in [
         ("project_title", args.project_title),
         ("admin_pass", args.admin_pass),
     ]:
-        if value and any(c in value for c in ['"', "'", "\\", "\n", "\r", "\0"]):
+        if value and any(
+            c in value for c in ['"', "'", "\\", "`", "<", ">", "\n", "\r", "\0"]
+        ):
             print(
-                f"{field_name} 不能包含引号 / 反斜杠 / 换行等字符",
+                f"{field_name} 不能包含引号 / 反斜杠 / 反引号 / 尖括号 / 换行等字符",
                 file=sys.stderr,
             )
             return 1

@@ -535,29 +535,48 @@ def test_init_port_clash_hint():
 
 
 # ============================================================
-# 七、第 13 轮：opencode 双平台支持
+# 七、第 13 轮：多平台支持（Claude Code / opencode / Codex / EasyCode）
 # ============================================================
-def test_install_sh_supports_dual_platform():
-    """install.sh 必须支持 --platform claude|opencode|all + 双目录映射。"""
+ALL_PLATFORMS = ("claude", "opencode", "codex", "easycode")
+
+
+def test_install_sh_supports_multi_platform():
+    """install.sh 必须支持 --platform claude|opencode|codex|easycode|all + 四目录映射。"""
     t = (ROOT / "install.sh").read_text()
     assert "platform_dir()" in t
     for must in (
         ".claude/skills",
         ".config/opencode/skills",
+        ".codex/skills",
+        ".easycode/skills",
         "--platform",
         "active_platforms",
+        'ALL_PLATFORMS="claude opencode codex easycode"',
     ):
-        assert must in t, f"双平台支持缺: {must}"
+        assert must in t, f"多平台支持缺: {must}"
+    # case 分支必须覆盖 4 平台（防目录映射缺失）
+    for pf in ALL_PLATFORMS:
+        assert f"        {pf})" in t or f"{pf})" in t.replace(
+            "case ", ""
+        ), f"platform_dir 缺 {pf} 分支"
+
+
+def test_install_sh_platform_validation():
+    """--platform 校验必须放行 4 平台 + all（防拼错平台名静默装错地方）。"""
+    t = (ROOT / "install.sh").read_text()
     import re as _re
 
-    # 平台校验必须存在（防拼错平台名静默装错地方）
-    assert _re.search(r'\[\[ "\$PLATFORM" != "all" .* "opencode" \]\]', t)
+    assert _re.search(
+        r"all\|claude\|opencode\|codex\|easycode", t
+    ), "平台白名单校验缺失"
 
 
-def test_docs_mention_opencode():
-    """三份根文档必须提到 opencode（双平台宣传一致）。"""
+def test_docs_mention_all_platforms():
+    """根文档必须提到 4 个平台（宣传与能力一致）。"""
     for d in [ROOT / "README.md", ROOT / "安装说明.md", ROOT / "使用手册.md"]:
-        assert "opencode" in d.read_text().lower(), f"{d.name} 未提及 opencode"
+        text = d.read_text().lower()
+        for pf in ("opencode", "codex", "easycode"):
+            assert pf in text, f"{d.name} 未提及 {pf}"
 
 
 def test_install_sh_opencode_command_generation():
