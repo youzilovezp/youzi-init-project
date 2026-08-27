@@ -41,6 +41,9 @@ AI（Claude Code / opencode）会询问项目显示名（可选）和初始管�
 
 ## 启动后用户访问
 
+**端口动态避让（必读）**：前端 3000 被占用时 vite 自动改用 3001/3002 并打印提示，
+以 vite 输出的 `Local:` 实际地址为准告知用户；怀疑浏览器停在旧页面时让用户 Cmd+Shift+R 强制刷新。
+
 - 前端：http://localhost:3000
 - 后端 API：http://localhost:8000
 - API 文档：http://localhost:8000/docs
@@ -83,6 +86,15 @@ python3 backend/scripts/add_module.py product --title "商品管理" \
 ```
 
 支持类型：`str / text / int / float / bool / datetime`。详细文档看生成项目根目录的 `项目说明.md`。
+
+## 前端 UI 生态硬约束（生成与后续迭代均生效）
+
+前端部分与 `/yz-init-ui` 同源，**严格遵守 Naive UI 全套生态**（详见 `templates/skills/ui/SKILL.md`）：
+
+- 组件库唯一 `naive-ui`，禁止 Element Plus / Ant Design Vue 等任何其他组件库
+- 图标唯一 `@vicons`（xicons 生态）+ `<n-icon>`，禁止其他图标库
+- 主题走 `themeOverrides` + `--yz-*` 令牌；Tailwind 仅作布局原子类，
+  入口必须在 `main.ts` 直连导入（禁止 SCSS `@import` 内联，会失效）
 
 ## 与其他命令的关系
 

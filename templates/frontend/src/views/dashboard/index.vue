@@ -53,7 +53,7 @@ onMounted(async () => {
   try {
     const [all, active] = await Promise.all([
       listUsers({ page: 1, page_size: 1 }),
-      listUsers({ page: 1, page_size: 1, is_active: true }),
+      listUsers({ page: 1, page_size: 1, is_active: 1 }),
     ])
     totalUsers.value = all.total
     activeUsers.value = active.total
@@ -119,7 +119,7 @@ onMounted(async () => {
       </div>
       <div class="rounded-card border border-border bg-bg-card p-5">
         <div class="text-text mb-2 font-semibold">角色分布</div>
-        <n-empty v-if="roleDistFailed" description="角色分布加载失败" :size="80" />
+        <n-empty v-if="roleDistFailed" description="角色分布加载失败" size="large" />
         <RolePieChart v-else :data="roleDist" />
       </div>
     </div>

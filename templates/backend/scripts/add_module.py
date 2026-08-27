@@ -291,8 +291,7 @@ def _form_default_obj(fields: list[dict]) -> str:
             elif f["type"] == "bool":
                 default = "false"
             else:
-                # str / text / datetime 都用空串（TS 类型均为 string，null 会让 vue-tsc 报错；
-                # el-date-picker 配 value-format 后 v-model 就是字符串）
+                # str / text / datetime 都用空串（TS 类型均为 string，null 会让 vue-tsc 报错）
                 default = "''"
         else:
             default = _default_js_literal(f["default"])
@@ -303,8 +302,7 @@ def _form_default_obj(fields: list[dict]) -> str:
 def _form_validation_rules(fields: list[dict]) -> str:
     """生成 naive-ui 的 FormRules（只校验 str 必填字段）。
 
-    naive-ui 的 FormRule 用 field 名作 key（对应 n-form-item 的 path），
-    required/message/trigger 形状与 Element Plus 兼容。
+    naive-ui 的 FormRule 用 field 名作 key（对应 n-form-item 的 path）。
     """
     rules = []
     for f in fields:
@@ -876,15 +874,17 @@ def add_module(
         print()
         print("   3. 编辑 frontend/src/router/index.ts，添加路由：")
         print(
-            f"      {{ path: '{module_name}', name: '{model_cls}', component: () => import('@/views/{module_name}/index.vue'), meta: {{ title: '{title}', icon: 'Document' }} }}"
+            f"      {{ path: '{module_name}', name: '{model_cls}', component: () => import('@/views/{module_name}/index.vue'), meta: {{ title: '{title}' }} }}"
         )
         print()
         print(
             "   4. 编辑 frontend/src/layouts/BasicLayout.vue，在 const menus = [ 里加一行："
         )
-        print(f"      {{ path: '/{module_name}', title: '{title}', icon: 'Document' }}")
         print(
-            "      （icon 填 Element Plus 图标名的字符串，如 Goods / Document / Setting）"
+            f"      {{ label: '{title}', key: '/{module_name}', icon: renderIcon(DocumentTextOutline) }}"
+        )
+        print(
+            "      （顶部 import { DocumentTextOutline } from '@vicons/ionicons5'；图标只能用 @vicons/xicons 生态，经 renderIcon 包裹）"
         )
         print()
         print(

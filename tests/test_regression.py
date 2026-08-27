@@ -295,6 +295,15 @@ def test_frontend_eslint9_flat_config():
     ).exists(), "模板不应携带 npm lock（pnpm 无视它，npm 用户被过期锁定坑）"
 
 
+def test_frontend_dynamic_port_avoidance():
+    """vite.config.ts 必须端口动态避让：3000 被旧进程占用时自动 +1 并明确打印——
+    否则用户会一直盯着旧 tab 里的旧页面，误以为脚手架没生效。"""
+    t = (TEMPLATES / "frontend" / "vite.config.ts").read_text()
+    assert "pickFreePort" in t, "缺端口探测函数"
+    assert "strictPort: true" in t, "选定端口后应锁定，防止再静默漂移"
+    assert "占用" in t, "换端口时必须有中文提示"
+
+
 def test_with_redis_sets_host():
     """--with-redis 必须写 REDIS_HOST=localhost（第八轮 🟠 flag 失效）。"""
     p = _gen("chkredis", ["--only", "server", "--with-redis"])

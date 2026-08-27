@@ -42,6 +42,26 @@ pnpm dev
 # UI 预览模式：内置 mock API（无后端），admin/admin 登录
 ```
 
+**端口动态避让（必读）**：3000 被占用时 vite 自动改用 3001/3002 并打印提示。
+启动后必须以 vite 输出的 `Local:` 实际地址为准告知用户；
+若怀疑用户浏览器停在旧页面（改版后仍显示旧样式），让用户 Cmd+Shift+R 强制刷新。
+
+## 前端 UI 生态硬约束（生成与后续迭代均生效）
+
+本脚手架前端**严格遵守 Naive UI 全套生态**，AI 生成/修改页面时不得偏离：
+
+1. **组件库唯一**：只允许 `naive-ui`（unplugin-vue-components + NaiveUiResolver 按需自动导入）。
+   禁止引入 Element Plus、Ant Design Vue、Vuetify 等任何其他组件库，禁止出现 `el-*` / `a-*` 标签。
+2. **图标唯一**：只用 `@vicons`（xicons 生态，Naive UI 官方推荐），当前用 `@vicons/ionicons5`，
+   必须通过 `<n-icon :component="Xxx">` 渲染；禁止 font-awesome / heroicons / element-icons 等。
+3. **主题定制**：走 `n-config-provider` 的 `themeOverrides`（JS 侧）+ `--yz-*` CSS 设计令牌；
+   禁止用深层选择器覆盖 Naive 组件内部 class。
+4. **Tailwind 定位**：仅作布局/间距原子类辅助；视觉主题一律走上面两条。
+   **Tailwind 入口必须在 `main.ts` 直连 `import './styles/tailwind.css'`，禁止从 SCSS `@import` 内联
+   （SCSS 内联会使 `@import "tailwindcss"` 指令失效，工具类全部丢失）。**
+5. **参考资源**：组件用法查 https://www.naiveui.com/zh-CN/os-theme/docs/introduction ；
+   图标查 xicons（https://github.com/07akioni/xicons ）；视觉规范对齐 NaiveUI 官方设计稿。
+
 ## 与其他命令的关系
 
 - `/yz-init-admin <name>`：完整前后端

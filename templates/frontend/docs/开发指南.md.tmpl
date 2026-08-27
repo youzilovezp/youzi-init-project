@@ -118,6 +118,6 @@ A: 开发环境检查 `vite.config.ts` 中的 proxy 配置；生产环境通过 
 
 A: 必须重启 Vite 开发服务器。
 
-### Q: 自动导入不生效
+### Q: 组件自动导入不生效
 
-A: 确认 `auto-imports.d.ts` 和 `components.d.ts` 在 `tsconfig.json` 的 include 中。
+A: 确认 `components.d.ts` 在 `tsconfig.json` 的 include 中（unplugin-vue-components 生成，Naive UI 组件按需自动注册）。

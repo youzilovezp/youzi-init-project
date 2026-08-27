@@ -1,5 +1,4 @@
-/* 全局样式 */
-@import './tailwind.css';
+/* 全局样式（Tailwind 入口在 main.ts 直连导入，勿在此 @import——SCSS 内联会使其失效） */
 
 * {
   box-sizing: border-box;

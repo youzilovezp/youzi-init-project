@@ -4,7 +4,8 @@ import type { PageParams, PageResult, UserInfo } from './types'
 
 export interface UserListParams extends PageParams {
   username?: string
-  is_active?: boolean
+  /** 1/0，FastAPI 查询参数自动转 bool */
+  is_active?: number
 }
 
 export interface UserCreatePayload {

@@ -105,7 +105,7 @@ export function uiMockPlugin(): Plugin {
           if (!hasToken(req)) return json(res, 401, { detail: 'Not authenticated' })
           const q = new URLSearchParams((req.url || '').split('?')[1] || '')
           let items = MOCK_USERS
-          if (q.get('is_active') === 'true') items = items.filter((u) => u.is_active)
+          const ia = q.get('is_active'); if (ia === 'true' || ia === '1') items = items.filter((u) => u.is_active)
           const page = Number(q.get('page') || 1)
           const pageSize = Number(q.get('page_size') || 20)
           const start = (page - 1) * pageSize

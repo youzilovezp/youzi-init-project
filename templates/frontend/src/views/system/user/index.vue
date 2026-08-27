@@ -19,7 +19,7 @@ const query = reactive({
   page: 1,
   page_size: 20,
   username: '',
-  is_active: undefined as boolean | undefined,
+  is_active: undefined as number | undefined, // 1/0：FastAPI 自动转 bool
 })
 
 const dialogVisible = ref(false)
@@ -217,8 +217,8 @@ onMounted(() => {
         clearable
         placeholder="状态"
         :options="[
-          { label: '启用', value: true },
-          { label: '禁用', value: false },
+          { label: '启用', value: 1 },
+          { label: '禁用', value: 0 },
         ]"
         style="width: 120px"
       />

@@ -4,6 +4,8 @@ import { createPinia } from 'pinia'
 
 import App from './App.vue'
 import router from './router'
+// Tailwind 入口必须独立直连——经 SCSS @import 内联后 @import "tailwindcss" 会失效
+import './styles/tailwind.css'
 import './styles/index.scss'
 
 const app = createApp(App)
