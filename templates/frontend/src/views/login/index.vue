@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { sanitizeRedirect } from '@/utils/redirect'
+import { APP_TITLE } from '@/config'
 
 const router = useRouter()
 const route = useRoute()
@@ -49,10 +50,24 @@ async function onSubmit() {
 </script>
 
 <template>
-  <div class="login-page">
-    <div class="login-box">
-      <h1 class="title">Youzi Admin</h1>
-      <p class="subtitle">管理系统</p>
+  <div
+    class="relative h-screen w-full overflow-hidden flex items-center justify-center bg-[linear-gradient(135deg,var(--el-color-primary-light-3),var(--el-color-primary-dark-2))]"
+  >
+    <div
+      class="absolute -top-24 -left-24 h-96 w-96 rounded-full bg-white/40 opacity-30 blur-3xl dark:bg-white/10"
+    ></div>
+    <div
+      class="absolute -right-32 -bottom-32 h-[28rem] w-[28rem] rounded-full bg-white/40 opacity-30 blur-3xl dark:bg-white/10"
+    ></div>
+
+    <div
+      class="relative w-96 max-w-[90vw] rounded-2xl border border-white/60 bg-white/80 p-8 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-[#1d1d1f]/80"
+    >
+      <div class="mb-8 flex flex-col items-center gap-1">
+        <img src="/youzi-logo.svg" alt="logo" class="mb-1 h-12 w-12" />
+        <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100">{{ APP_TITLE }}</h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400">管理系统</p>
+      </div>
 
       <el-form ref="formRef" :model="form" :rules="rules" size="large" @keyup.enter="onSubmit">
         <el-form-item prop="username">
@@ -74,46 +89,9 @@ async function onSubmit() {
         </el-form-item>
       </el-form>
 
-      <p class="tips">默认账号 admin，密码见 backend/.env 的 INITIAL_ADMIN_PASSWORD</p>
+      <p class="mt-4 text-center text-xs text-gray-500 dark:text-gray-400">
+        默认账号 admin，密码见 backend/.env 的 INITIAL_ADMIN_PASSWORD
+      </p>
     </div>
   </div>
 </template>
-
-<style scoped lang="scss">
-.login-page {
-  height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #1890ff 0%, #003a8c 100%);
-}
-
-.login-box {
-  width: 400px;
-  padding: 40px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-}
-
-.title {
-  font-size: 24px;
-  font-weight: bold;
-  text-align: center;
-  margin: 0 0 8px;
-  color: #1890ff;
-}
-
-.subtitle {
-  text-align: center;
-  color: #999;
-  margin: 0 0 32px;
-}
-
-.tips {
-  text-align: center;
-  color: #999;
-  font-size: 12px;
-  margin-top: 16px;
-}
-</style>
