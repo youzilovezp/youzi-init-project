@@ -81,11 +81,11 @@ onMounted(fetchData)
 
 <template>
   <div class="page">
-    <el-card>
-      <div style="margin-bottom: 16px">
-        <el-button type="success" @click="openCreate">新增角色</el-button>
-      </div>
+    <div class="mb-4">
+      <el-button type="success" @click="openCreate">新增角色</el-button>
+    </div>
 
+    <div class="rounded-lg overflow-hidden border border-border">
       <el-table v-loading="loading" :data="tableData" stripe>
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="name" label="角色名" />
@@ -101,7 +101,7 @@ onMounted(fetchData)
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
+    </div>
 
     <el-dialog
       v-model="dialogVisible"

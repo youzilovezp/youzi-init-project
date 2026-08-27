@@ -146,26 +146,26 @@ onMounted(() => {
 
 <template>
   <div class="page">
-    <el-card>
-      <!-- 搜索栏 -->
-      <el-form :inline="true" :model="query">
-        <el-form-item label="用户名">
-          <el-input v-model="query.username" clearable placeholder="模糊搜索" />
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="query.is_active" clearable placeholder="全部" style="width: 140px">
-            <el-option label="启用" :value="true" />
-            <el-option label="禁用" :value="false" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="() => { query.page = 1; fetchData() }">查询</el-button>
-          <el-button @click="() => { query.username = ''; query.is_active = undefined; fetchData() }">重置</el-button>
-          <el-button type="success" @click="openCreate">新增用户</el-button>
-        </el-form-item>
-      </el-form>
+    <!-- 搜索栏 -->
+    <el-form class="mb-4" :inline="true" :model="query">
+      <el-form-item label="用户名">
+        <el-input v-model="query.username" clearable placeholder="模糊搜索" />
+      </el-form-item>
+      <el-form-item label="状态">
+        <el-select v-model="query.is_active" clearable placeholder="全部" style="width: 140px">
+          <el-option label="启用" :value="true" />
+          <el-option label="禁用" :value="false" />
+        </el-select>
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" @click="() => { query.page = 1; fetchData() }">查询</el-button>
+        <el-button @click="() => { query.username = ''; query.is_active = undefined; fetchData() }">重置</el-button>
+        <el-button type="success" @click="openCreate">新增用户</el-button>
+      </el-form-item>
+    </el-form>
 
-      <!-- 表格 -->
+    <!-- 表格 -->
+    <div class="rounded-lg overflow-hidden border border-border">
       <el-table v-loading="loading" :data="tableData" stripe>
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="username" label="用户名" />
@@ -189,19 +189,20 @@ onMounted(() => {
           </template>
         </el-table-column>
       </el-table>
+    </div>
 
-      <!-- 分页 -->
+    <!-- 分页 -->
+    <div class="flex justify-end mt-4">
       <el-pagination
         :current-page="query.page"
         :page-size="query.page_size"
         :total="total"
         layout="total, sizes, prev, pager, next, jumper"
         :page-sizes="[10, 20, 50, 100]"
-        style="margin-top: 16px; text-align: right"
         @current-change="(p: number) => { query.page = p; fetchData() }"
         @size-change="(s: number) => { query.page_size = s; query.page = 1; fetchData() }"
       />
-    </el-card>
+    </div>
 
     <!-- 新增/编辑弹窗 -->
     <el-dialog
