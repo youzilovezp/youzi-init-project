@@ -23,12 +23,13 @@ describe('app store 主题', () => {
     expect(document.documentElement.classList.contains('dark')).toBe(false)
   })
 
-  it('setPrimaryColor 更新 EP CSS 变量与 localStorage', () => {
+  it('setPrimaryColor 更新 --yz-primary 变量、naive overrides 与 localStorage', () => {
     const app = useAppStore()
-    app.setPrimaryColor('#409eff')
-    const v = getComputedStyle(document.documentElement).getPropertyValue('--el-color-primary')
-    expect(v.trim().toLowerCase()).toBe('#409eff')
-    expect(localStorage.getItem('youzi-app-primary')).toBe('#409eff')
+    app.setPrimaryColor('#2080f0')
+    const v = getComputedStyle(document.documentElement).getPropertyValue('--yz-primary')
+    expect(v.trim().toLowerCase()).toBe('#2080f0')
+    expect(app.naiveThemeOverrides.common?.primaryColor).toBe('#2080f0')
+    expect(localStorage.getItem('youzi-app-primary')).toBe('#2080f0')
   })
 
   it('setPrimaryColor 忽略非法 hex（3 位缩写 / rgb() 不写入不覆盖）', () => {
@@ -39,30 +40,30 @@ describe('app store 主题', () => {
     expect(app.primaryColor).toBe('#7c3aed')
     expect(localStorage.getItem('youzi-app-primary')).toBe('#7c3aed')
     expect(
-      getComputedStyle(document.documentElement).getPropertyValue('--el-color-primary').trim().toLowerCase(),
+      getComputedStyle(document.documentElement).getPropertyValue('--yz-primary').trim().toLowerCase(),
     ).toBe('#7c3aed')
   })
 
   it('色板预设包含品牌蓝且无重复色值', () => {
     const colors = THEME_PRESETS.map((p) => p.color)
-    expect(colors).toContain('#409eff')
+    expect(colors).toContain('#2080f0')
     expect(new Set(colors).size).toBe(colors.length)
   })
 
-  it('暗色下 light-3 改与暗色底混合（区别于亮色白混结果）', () => {
+  it('naive 主题跟随暗色：亮色 undefined / 暗色 darkTheme', () => {
     const app = useAppStore()
     app.setDark(false)
-    const light3 = getComputedStyle(document.documentElement)
-      .getPropertyValue('--el-color-primary-light-3')
-      .trim()
-      .toLowerCase()
+    expect(app.naiveTheme).toBeUndefined()
     app.setDark(true)
-    const dark3 = getComputedStyle(document.documentElement)
-      .getPropertyValue('--el-color-primary-light-3')
-      .trim()
-      .toLowerCase()
-    expect(light3).toBe('#f8bb54')
-    expect(dark3).toBe('#b2750e')
-    expect(dark3).not.toBe(light3)
+    expect(app.naiveTheme).toBeDefined()
+    expect(app.naiveTheme!.name).toBe('dark')
+  })
+
+  it('hover/pressed 由主色派生（亮色 hover 偏白、pressed 偏黑）', () => {
+    const app = useAppStore()
+    app.setPrimaryColor('#f59e0b')
+    const c = app.naiveThemeOverrides.common!
+    expect(c.primaryColorHover).not.toBe('#f59e0b')
+    expect(c.primaryColorPressed).not.toBe('#f59e0b')
   })
 })

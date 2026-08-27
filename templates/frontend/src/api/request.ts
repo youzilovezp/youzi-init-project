@@ -3,10 +3,10 @@
  *
  * - 请求拦截：自动注入 token
  * - 响应拦截：统一处理 code、错误提示
- * - 错误处理：401 自动跳登录页（仅"会话过期"场景；登录失败走正常 ElMessage 错误）
+ * - 错误处理：401 自动跳登录页（仅"会话过期"场景；登录失败走正常 message 错误）
  */
 import axios, { AxiosError, type AxiosRequestConfig, type InternalAxiosRequestConfig } from 'axios'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { message, dialogWarning } from '@/utils/feedback'
 import type { ApiResponse } from './types'
 import { TOKEN_KEY } from '@/config'
 
@@ -26,7 +26,7 @@ export interface RequestOptions extends AxiosRequestConfig {
 
 const baseURL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 
-// 401 弹窗单例化：避免并发请求触发多个 ElMessageBox 堆叠
+// 401 弹窗单例化：避免并发请求触发多个弹窗堆叠
 let authDialogShown = false
 
 function showSessionExpiredDialog() {
@@ -34,22 +34,19 @@ function showSessionExpiredDialog() {
   authDialogShown = true
   // 用户已确认退出前**不**清 token —— 让当前页面的请求还能跑完，否则会陷入"清掉 → 再 401 → 再弹"的死循环
   try {
-    ElMessageBox.confirm('登录已过期，请重新登录', '提示', {
-      confirmButtonText: '重新登录',
-      cancelButtonText: '取消',
-      type: 'warning',
-    })
-      .then(() => {
+    dialogWarning({
+      title: '提示',
+      content: '登录已过期，请重新登录',
+      positiveText: '重新登录',
+      negativeText: '取消',
+      onPositive: () => {
         localStorage.removeItem(TOKEN_KEY)
         window.location.href = '/login'
-      })
-      .catch(() => {
-        // 用户点取消：保持当前页 token 不动，等用户主动操作；
-        // 路由守卫会拦住后续访问受保护页。
-      })
-      .finally(() => {
+      },
+      onClose: () => {
         authDialogShown = false
-      })
+      },
+    })
   } catch {
     // 组件库未就绪等异常 → 直接走清 token + 跳登录
     authDialogShown = false
@@ -93,7 +90,7 @@ request.interceptors.response.use(
     // 业务错误：静默模式（silent=true）下不弹全局错误
     const silent = (response.config as RequestOptions).silent
     if (!silent) {
-      ElMessage.error(wrapped.message || '请求失败')
+      message.error(wrapped.message || '请求失败')
     }
     return Promise.reject(new Error(wrapped.message || '请求失败'))
   },
@@ -101,16 +98,16 @@ request.interceptors.response.use(
     const silent = (error.config as RequestOptions | undefined)?.silent
     const status = error.response?.status
     // 超时/断网给中文提示（原始英文 axios 文案对用户不友好）
-    let message = error.response?.data?.message || error.message || '网络异常'
-    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) message = '请求超时，请检查网络后重试'
-    else if (!error.response) message = '无法连接服务器，请确认服务已启动'
+    let msg = error.response?.data?.message || error.message || '网络异常'
+    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) msg = '请求超时，请检查网络后重试'
+    else if (!error.response) msg = '无法连接服务器，请确认服务已启动'
     const url = error.config?.url || ''
 
     // 401 处理：登录失败（/auth/login 命中） vs 会话过期（其他接口）分开
     if (status === 401) {
       if (url.includes('/auth/login')) {
         // 登录失败：业务错误，直接 toast 让用户知道密码错
-        if (!silent) ElMessage.error(message || '登录失败')
+        if (!silent) message.error(msg || '登录失败')
         return Promise.reject(error)
       }
       // 会话过期：弹窗，让用户选择
@@ -119,7 +116,7 @@ request.interceptors.response.use(
     }
 
     if (!silent) {
-      ElMessage.error(message)
+      message.error(msg)
     }
     return Promise.reject(error)
   }

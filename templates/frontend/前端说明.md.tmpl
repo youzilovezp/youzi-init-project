@@ -1,6 +1,6 @@
 # {{ project_title }} 前端
 
-基于 Vue 3 + TypeScript + Vite + Element Plus + TailwindCSS v4 + @vueuse/core 的管理系统前端（暗色模式 / 主题色切换 / ECharts 图表）。
+基于 Vue 3 + TypeScript + Vite + Naive UI + TailwindCSS v4 + @vueuse/core 的管理系统前端（暗色模式 / 主题色切换 / ECharts 图表）。
 
 ## 启动
 
@@ -27,6 +27,18 @@ cd .. && make frontend-dev
 ## 默认账号
 
 `admin` / `admin`（admin 模式密码在 backend/.env；本前端对接的后端工程配置）。（生产前必须改）
+{% if only == 'ui' %}
+
+## UI 预览模式（本项目无后端）
+
+`.env.development` 里 `VITE_USE_MOCK=true`：`pnpm dev` 时内置 mock API（`mock/server.ts`），
+
+- 登录账号 `admin` / `admin`（mock 校验，密码错返回 401）
+- dashboard / 用户管理 / 角色管理页展示 mock 数据（`mock/server.ts` 里改）
+- 其余未 mock 的 `/api/v1/*` 返回统一空响应
+
+接真后端时：删掉 `.env.development` 的 `VITE_USE_MOCK=true`，并把 `VITE_PROXY_TARGET` 指向后端地址。
+{% endif %}
 
 ## 项目结构
 
@@ -64,7 +76,7 @@ frontend/
 ### 暗色模式
 
 - 切换入口：顶栏月亮/太阳图标（`appStore.toggleDark()`）
-- 实现：`html.dark` class + Element Plus 官方暗色变量；跟随系统（`auto`）/ 亮 / 暗三态
+- 实现：`html.dark` class + Naive UI 官方暗色变量；跟随系统（`auto`）/ 亮 / 暗三态
 - 持久化键：`youzi-app-theme`（值为 `auto` / `light` / `dark`）
 
 ### 主题色色板
@@ -80,7 +92,7 @@ frontend/
 | 赤霞红 | `#ef4444` |
 | 黛青蓝 | `#0ea5e9` |
 
-选中后 `setPrimaryColor()` 会自动计算 primary 的 `light-3/5/7/8/9` 与 `dark-2` 梯度写入 `--el-color-primary*` CSS 变量——Element Plus 组件、Tailwind 工具类（`bg-primary`、`text-primary` 等）与登录页渐变背景全部跟随。持久化键：`youzi-app-primary`。
+选中后 `setPrimaryColor()` 会自动计算 primary 的 `light-3/5/7/8/9` 与 `dark-2` 梯度写入 `--el-color-primary*` CSS 变量——Naive UI 组件、Tailwind 工具类（`bg-primary`、`text-primary` 等）与登录页渐变背景全部跟随。持久化键：`youzi-app-primary`。
 
 ### 扩展色板
 

@@ -3,10 +3,13 @@
 scaffold-init 初始化脚本。
 
 设计原则：给非技术人员使用——CLI 越简单越好。
-    python scripts/init.py my-app                  # 默认 admin 模式（前后端 + PostgreSQL）
+    python scripts/init.py my-app --only admin     # 前后端 + PostgreSQL
     python scripts/init.py my-app --only ui        # 仅前端
     python scripts/init.py my-app --only server    # 仅后端
     python scripts/init.py my-app --with-redis     # 启用 Redis（生产多 worker 场景）
+
+    注意：--only 必填。曾默认 admin——AI 执行 skill 时丢参数会静默生成
+    前后端全家桶，改为缺参数直接报错。
 
 中间件策略：make start 优先复用本机已运行的 PostgreSQL/Redis，缺的才用 Docker 起。
 数据库 / 端口全部走 .env 或默认值。
@@ -68,10 +71,17 @@ def build_context(args: argparse.Namespace) -> dict:
 
 
 # ---------- Jinja rendering ----------
+# 模板目录开发/预览时会本地 npm install，node_modules 绝不能拷进生成项目
+# （否则用户 pnpm install 报 "installed by a different package manager"，生成也变慢）
+EXCLUDED_DIR_NAMES = {"node_modules"}
+
+
 def render_template(
     src: Path, dst: Path, env: Environment, context: dict, search_path: Path
 ) -> None:
     if src.is_dir():
+        if src.name in EXCLUDED_DIR_NAMES:
+            return
         dst.mkdir(parents=True, exist_ok=True)
         for child in src.iterdir():
             render_template(child, dst / child.name, env, context, search_path)
@@ -174,6 +184,16 @@ def post_process_frontend(target_dir: Path, context: dict) -> None:
             )
         f.write_text(text, encoding="utf-8")
 
+    # ui 模式：开 dev mock——无后端也能 pnpm dev + admin/admin 登录（admin 模式有真后端，绝不启用）
+    if context["only"] == "ui":
+        env_dev = target_dir / ".env.development"
+        if env_dev.exists():
+            env_dev.write_text(
+                env_dev.read_text(encoding="utf-8").rstrip()
+                + "\n# UI 预览模式：dev 用 mock API（无后端），admin/admin 登录\nVITE_USE_MOCK=true\n",
+                encoding="utf-8",
+            )
+
     pkg = target_dir / "package.json"
     if pkg.exists():
         try:
@@ -270,14 +290,14 @@ def init_git_safely(target_dir: Path) -> None:
 # ---------- Main ----------
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="初始化管理系统脚手架（默认 admin 模式：前后端 + PostgreSQL）"
+        description="初始化管理系统脚手架（--only admin/ui/server 指定输出范围，必填）"
     )
     parser.add_argument("project_name", help="项目名（kebab-case），如 my-app")
     parser.add_argument(
         "--only",
         choices=["admin", "ui", "server"],
-        default=None,
-        help="输出范围：默认 admin=前后端+中间件；ui=仅前端；server=仅后端",
+        required=True,
+        help="输出范围（必填）：admin=前后端+中间件；ui=仅前端；server=仅后端",
     )
     parser.add_argument(
         "--title",
@@ -324,10 +344,7 @@ def main() -> int:
             )
             return 1
 
-    # 默认 admin 模式（最常见）
-    if args.only is None:
-        args.only = "admin"
-
+    # --only 必填：曾默认 admin，AI 执行 skill 丢参数时静默生成前后端全家桶
     if args.project_title is None:
         args.project_title = (
             args.project_name.replace("-", " ").replace("_", " ").title()
@@ -413,14 +430,18 @@ def main() -> int:
 
     print("✅ 项目生成完成！")
     # 多项目提示：端口默认相同，第二个项目必须改（真实占用检测）
+    # ui 模式无后端/数据库，server 模式无前端——只检测本模式会用到的端口
     import socket
 
+    checks = [("前端", DEFAULT_FRONTEND_PORT)]
+    if args.only != "ui":
+        checks = [
+            ("后端", DEFAULT_BACKEND_PORT),
+            *checks,
+            ("PostgreSQL", DEFAULT_POSTGRES_PORT),
+        ]
     clashes = []
-    for label, port in [
-        ("后端", DEFAULT_BACKEND_PORT),
-        ("前端", DEFAULT_FRONTEND_PORT),
-        ("PostgreSQL", DEFAULT_POSTGRES_PORT),
-    ]:
+    for label, port in checks:
         s = socket.socket()
         s.settimeout(0.5)
         if s.connect_ex(("127.0.0.1", port)) == 0:
@@ -428,23 +449,28 @@ def main() -> int:
         s.close()
     if clashes:
         print(f"   ⚠️  检测到端口已被占用：{'、'.join(clashes)}")
-        print(
-            "       多项目并存：改 backend/.env 的 PORT / FRONTEND_PORT / POSTGRES_PORT 为空闲值"
-        )
-    print(f"   默认账号：{args.admin_user} / {args.admin_pass}")
-    print(f"   后端地址：http://localhost:{DEFAULT_BACKEND_PORT}")
+        if args.only == "ui":
+            print("       多项目并存：改 vite.config.ts / .env.* 的端口为空闲值")
+        else:
+            print(
+                "       多项目并存：改 backend/.env 的 PORT / FRONTEND_PORT / POSTGRES_PORT 为空闲值"
+            )
+    if args.only != "ui":
+        print(f"   默认账号：{args.admin_user} / {args.admin_pass}")
+        print(f"   后端地址：http://localhost:{DEFAULT_BACKEND_PORT}")
     # 安全提示：默认密码是 admin/admin，本地开发 OK，但生产前必须改
-    if args.admin_pass == "admin":
+    if args.only != "ui" and args.admin_pass == "admin":
         print()
         print("  ⚠️  ⚠️  ⚠️  生产环境安全警告 ⚠️  ⚠️  ⚠️")
         print("  当前默认密码 = 'admin'，仅供本地开发调试")
         print("  生产部署前**必须**用以下方式改成强密码：")
         print(
-            f"    1. 重新跑：python scripts/init.py {args.project_name} --admin-pass '<强密码>'"
+            f"    1. 重新跑：python scripts/init.py {args.project_name} --only {args.only} --admin-pass '<强密码>'"
         )
         print("    2. 或编辑 .env 文件的 INITIAL_ADMIN_PASSWORD")
         print("    3. 后端会在 APP_ENV=prod 时**拒绝启动**（强密码检查）")
-    print(f"   前端地址：http://localhost:{DEFAULT_FRONTEND_PORT}")
+    if args.only != "server":
+        print(f"   前端地址：http://localhost:{DEFAULT_FRONTEND_PORT}")
     if args.only == "admin":
         print()
         print("接下来（默认 PostgreSQL，中间件自动就绪）：")

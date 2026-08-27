@@ -33,7 +33,7 @@ cd my-app && make dev
 
 打开 **http://localhost:3000**，账号 `admin` / `admin`，登录成功 ✅
 
-> 💡 默认密码 `admin/admin` 方便本地开发。**生产前用 `python3 scripts/init.py my-app --admin-pass '<强密码>'` 重设。**
+> 💡 默认密码 `admin/admin` 方便本地开发。**生产前用 `python3 scripts/init.py my-app --only admin --admin-pass '<强密码>'` 重设。**
 
 ---
 
@@ -161,7 +161,7 @@ python3 backend/scripts/add_module.py order --title "订单管理" \
 | 🖼️ | Vue | 3.4 |
 | 📘 | TypeScript | 5.4 |
 | ⚡ | Vite | 5.1 |
-| 🎨 | Element Plus | 2.6 |
+| 🎨 | Naive UI | 2.6 |
 | 🌬️ | Tailwind CSS | 4.3 |
 | 🔧 | @vueuse/core | 14.4 |
 | 📊 | ECharts（vue-echarts） | 6.1 |

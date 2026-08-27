@@ -19,9 +19,9 @@ declare module 'vue-router' {
   interface RouteMeta {
     /** 是否公开页（true = 无需登录） */
     public?: boolean
-    /** 页面标题（用于浏览器 tab 标题 + el-breadcrumb） */
+    /** 页面标题（用于浏览器 tab 标题 + 面包屑） */
     title?: string
-    /** 菜单图标（Element Plus 图标组件名） */
+    /** 菜单图标（Naive UI 图标组件名） */
     icon?: string
     /** 是否需要 superuser 权限 */
     requiresAdmin?: boolean

@@ -34,7 +34,7 @@ AI（Claude Code / opencode）会询问项目显示名（可选）和初始管�
 ## 执行流程
 
 1. 询问项目显示名 + 初始管理员密码（均可回车跳过）
-2. 调用 `scripts/init.py <name> --only admin`（生产级加 `--with-redis`）
+2. 调用 `scripts/init.py <name> --only admin`（`--only` 必填，绝不可省略；生产级加 `--with-redis`）
 3. 渲染 `templates/backend/*` + `templates/frontend/*` + `templates/root/*`
 4. 复制到目标目录 `项目目录/`
 5. 提示启动：`cd <name> && make dev`（一键：装依赖 + 中间件 + 前后端；或分开 `make backend-dev` / `make frontend-dev`）

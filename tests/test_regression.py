@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import ast
+import json
 import re
 import subprocess
 import sys
@@ -164,11 +165,16 @@ def test_generated_view_no_literal_row_name(tmp_path):
     view = (tmp_path / "fe" / "src" / "views" / "thing" / "index.vue").read_text()
     assert "$row.name" not in view, "删除确认文案出现字面 $row.name"
     assert "catch(() => false)" in view, "确认框缺 .catch（unhandled rejection 回归）"
-    assert "el-pagination" in view, "生成页缺分页（第五轮 🔴）"
+    assert (
+        "n-data-table" in view
+    ), "生成页缺表格（naive-ui，第五轮 🔴 分页回归的等价物）"
     assert "formatTime" in view, "生成页缺 formatTime（第十一轮 🔴 时区）"
     assert (
-        "el-card" not in view
-    ), ".page 已是卡片容器，生成页再包 el-card 会卡中卡（终审 Important#1）"
+        "n-card" not in view
+    ), ".page 已是卡片容器，生成页再包 n-card 会卡中卡（终审 Important#1）"
+    # Naive UI 生态：生成代码不得再引用 Element Plus
+    for bad in ("element-plus", "el-table", "el-form", "el-dialog", "ElMessage"):
+        assert bad not in view, f"生成页残留 EP 组件 {bad}（已迁移 naive-ui）"
 
 
 # ============================================================
@@ -216,11 +222,77 @@ def test_admin_generation_complete():
                     pytest.fail(f"jinja 残留: {f.name}: {line[:60]}")
 
 
+def test_only_flag_required():
+    """省略 --only 必须报错（AI 执行 skill 丢参数时不得静默生成 admin 全家桶）。"""
+    tmp = tempfile.mkdtemp(prefix="yz-noflag-")
+    r = subprocess.run(
+        [sys.executable, str(SCRIPTS / "init.py"), "chkflag"],
+        cwd=tmp,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert r.returncode != 0, "省略 --only 不应成功（会静默生成 admin 模式）"
+    assert "--only" in r.stderr
+    assert not (Path(tmp) / "chkflag").exists(), "参数缺失时不应生成任何目录"
+
+
 def test_ui_mode_gitignore_has_node_modules():
     """ui 模式 .gitignore 必须含 node_modules（第六轮 🔴）。"""
     p = _gen("chkui", ["--only", "ui"])
     assert "node_modules" in (p / ".gitignore").read_text()
     assert not (p / "backend").exists(), "ui 模式不应有 backend/"
+
+
+def test_generation_skips_node_modules():
+    """模板目录里开发残留的 node_modules 不得拷进生成项目（pnpm 装时报
+    'installed by a different package manager' + 拖慢生成）。"""
+    assert (
+        TEMPLATES / "frontend" / "node_modules"
+    ).exists(), "前置失效：模板目录应有 node_modules 残留才能验证此回归"
+    p = _gen("chkcopy", ["--only", "ui"])
+    assert not (p / "node_modules").exists(), "生成项目不应携带模板的 node_modules"
+
+
+def test_ui_mode_enables_dev_mock():
+    """ui 模式：.env.development 开 VITE_USE_MOCK，pnpm dev 即可用 admin/admin 登录。"""
+    p = _gen("chkmock", ["--only", "ui"])
+    envdev = (p / ".env.development").read_text()
+    assert "VITE_USE_MOCK=true" in envdev, "ui 模式应启用 mock"
+    assert "mock/server" in (p / "vite.config.ts").read_text(), "vite 应接线 mock 插件"
+    assert (p / "mock" / "server.ts").exists(), "缺 mock/server.ts"
+    # mock 必须实现登录链路（admin/admin → token / me / logout）与 dashboard 数据源
+    mock = (p / "mock" / "server.ts").read_text()
+    for endpoint in ("/auth/login", "/auth/me", "/auth/logout", "/users", "/roles"):
+        assert endpoint in mock, f"mock 缺端点 {endpoint}"
+    assert "admin" in mock, "mock 应支持 admin/admin 登录"
+
+
+def test_admin_mode_no_dev_mock():
+    """admin 模式：不得启用 mock（有真后端，mock 中间件会截走 /api 请求）。"""
+    p = _gen("chknomock", ["--only", "admin"])
+    envdev = (p / "frontend" / ".env.development").read_text()
+    assert "VITE_USE_MOCK" not in envdev, "admin 模式不应启用 mock"
+
+
+def test_frontend_eslint9_flat_config():
+    """前端模板必须 ESLint 9 flat config：eslint 8 已 EOL（安装时 deprecated 警告刷屏），
+    且不得携带会毒化 npm 重解析的过期 package-lock.json。"""
+    pkg = json.loads((TEMPLATES / "frontend" / "package.json").read_text())
+    dev = pkg["devDependencies"]
+    version = dev.get("eslint", "")
+    assert (
+        version.lstrip("^~").split(".")[0] == "9"
+        or int(version.lstrip("^~>= ").split(".")[0]) >= 9
+    ), f"eslint 应为 9+，当前 {version}"
+    assert "eslint-plugin-vue" in dev, "缺 eslint-plugin-vue"
+    assert not (
+        TEMPLATES / "frontend" / ".eslintrc.cjs"
+    ).exists(), "应使用 eslint.config.js（flat），不得残留 .eslintrc.cjs"
+    assert (TEMPLATES / "frontend" / "eslint.config.js").exists()
+    assert not (
+        TEMPLATES / "frontend" / "package-lock.json"
+    ).exists(), "模板不应携带 npm lock（pnpm 无视它，npm 用户被过期锁定坑）"
 
 
 def test_with_redis_sets_host():

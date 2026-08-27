@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, watch, type Ref } from 'vue'
 import { useDark, useStorage, type BasicColorSchema } from '@vueuse/core'
+import { darkTheme, type GlobalThemeOverrides } from 'naive-ui'
 
 /** 主题色预设（与设计文档一致） */
 export interface ThemePreset {
@@ -10,48 +11,37 @@ export interface ThemePreset {
 
 export const THEME_PRESETS: ThemePreset[] = [
   { name: '柚子橙', color: '#f59e0b' },
-  { name: '品牌蓝', color: '#409eff' },
+  { name: '品牌蓝', color: '#2080f0' },
   { name: '紫罗兰', color: '#7c3aed' },
   { name: '翡翠绿', color: '#10b981' },
   { name: '赤霞红', color: '#ef4444' },
   { name: '黛青蓝', color: '#0ea5e9' },
 ]
 
-/** 生成 primary 的 light-3/5/7/8/9 与 dark-2 变量并写到 documentElement
- *  暗色下 light-N 改与 EP 暗色底 #141414 混合（内联变量优先级高于 html.dark 选择器，需自查暗色） */
-/** 合法主题色：仅 6 位 hex（非法输入忽略，防 NaN 通道写坏全套变量） */
+/** 合法主题色：仅 6 位 hex（非法输入忽略，防 NaN 通道写坏变量/overrides） */
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/
 
-function applyPrimaryColor(color: string, dark: boolean) {
-  if (!HEX_COLOR_RE.test(color)) return
-  const root = document.documentElement
-  const mix = (c: string, t: string, ratio: number) => {
-    const hex = (s: string): [number, number, number] => [
-      parseInt(s.slice(1, 3), 16),
-      parseInt(s.slice(3, 5), 16),
-      parseInt(s.slice(5, 7), 16),
-    ]
-    const [r1, g1, b1] = hex(c)
-    const [r2, g2, b2] = hex(t)
-    const m = (a: number, b: number) => Math.round(a * ratio + b * (1 - ratio))
-      .toString(16)
-      .padStart(2, '0')
-    return `#${m(r1, r2)}${m(g1, g2)}${m(b1, b2)}`
-  }
-  const base = dark ? '#141414' : '#ffffff'
-  const black = '#000000'
-  root.style.setProperty('--el-color-primary', color)
-  for (const i of [3, 5, 7, 8, 9]) {
-    root.style.setProperty(`--el-color-primary-light-${i}`, mix(color, base, 1 - i / 10))
-  }
-  root.style.setProperty('--el-color-primary-dark-2', mix(color, black, 0.8))
+function hex2rgb(hex: string): [number, number, number] {
+  return [
+    parseInt(hex.slice(1, 3), 16),
+    parseInt(hex.slice(3, 5), 16),
+    parseInt(hex.slice(5, 7), 16),
+  ]
+}
+
+/** 与另一色混合（ratio 为自身占比）；Naive hover/pressed 由主色派生，保持 EP 时代的观感连续 */
+function mix(color: string, target: string, ratio: number): string {
+  const [r1, g1, b1] = hex2rgb(color)
+  const [r2, g2, b2] = hex2rgb(target)
+  const m = (a: number, b: number) =>
+    Math.round(a * ratio + b * (1 - ratio)).toString(16).padStart(2, '0')
+  return `#${m(r1, r2)}${m(g1, g2)}${m(b1, b2)}`
 }
 
 export const useAppStore = defineStore('app', () => {
   const sidebarCollapsed = useStorage('youzi-app-sidebar-collapsed', false)
 
   // vueuse useDark：读写 html.dark class + localStorage('youzi-app-theme')
-  // storageRef 用 flush:'sync' 的 useStorage：useDark 内部默认 'pre' 写入是微任务，同步断言读不到
   const themeStorage = useStorage<BasicColorSchema>(
     'youzi-app-theme',
     'auto',
@@ -96,10 +86,30 @@ export const useAppStore = defineStore('app', () => {
     primaryColor.value = color
   }
 
-  // 初始化 + 跟随变化应用变量（sync：测试与首帧同步可见；暗色切换时 light 系改与暗色底混合）
+  // ---------- Naive UI 主题（App.vue 的 n-config-provider 消费） ----------
+  const naiveTheme = computed(() => (isDark.value ? darkTheme : undefined))
+  const naiveThemeOverrides = computed<GlobalThemeOverrides>(() => {
+    const c = primaryColor.value
+    if (!HEX_COLOR_RE.test(c)) return {}
+    return {
+      common: {
+        primaryColor: c,
+        primaryColorHover: mix(c, '#ffffff', 0.8),
+        primaryColorPressed: mix(c, '#000000', 0.8),
+        primaryColorSuppl: mix(c, '#ffffff', 0.8),
+        borderRadius: '6px',
+      },
+    }
+  })
+
+  // 自建令牌 --yz-primary 写到 documentElement（tailwind/登录页渐变/图表引用）
   watch(
     [primaryColor, isDark],
-    ([c, d]) => applyPrimaryColor(c, d),
+    ([c]) => {
+      if (HEX_COLOR_RE.test(c)) {
+        document.documentElement.style.setProperty('--yz-primary', c)
+      }
+    },
     { immediate: true, flush: 'sync' },
   )
 
@@ -111,5 +121,7 @@ export const useAppStore = defineStore('app', () => {
     setDark,
     primaryColor,
     setPrimaryColor,
+    naiveTheme,
+    naiveThemeOverrides,
   }
 })

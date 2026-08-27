@@ -1,16 +1,17 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { h, onMounted, reactive, ref } from 'vue'
+import { NButton, type DataTableColumns, type FormInst, type FormRules } from 'naive-ui'
 import * as roleApi from '@/api/role'
 import type { Role } from '@/api/role'
 import { formatTime } from '@/utils/format'
+import { message, confirm } from '@/utils/feedback'
 
 const loading = ref(false)
 const tableData = ref<Role[]>([])
 
 const dialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
-const formRef = ref<FormInstance>()
+const formRef = ref<FormInst>()
 const formRules: FormRules = {
   name: [{ required: true, message: '请输入角色名', trigger: 'blur' }],
   code: [{ required: true, message: '请输入角色编码', trigger: 'blur' }],
@@ -21,6 +22,38 @@ const form = reactive({
   code: '',
   remark: '',
 })
+
+const columns: DataTableColumns<Role> = [
+  { title: 'ID', key: 'id', width: 70 },
+  { title: '角色名', key: 'name' },
+  { title: '角色编码', key: 'code' },
+  { title: '备注', key: 'remark', ellipsis: { tooltip: true } },
+  {
+    title: '创建时间',
+    key: 'created_at',
+    width: 170,
+    render: (row) => formatTime(row.created_at),
+  },
+  {
+    title: '操作',
+    key: 'actions',
+    width: 130,
+    render(row) {
+      return [
+        h(
+          NButton,
+          { size: 'small', quaternary: true, type: 'primary', onClick: () => openEdit(row) },
+          { default: () => '编辑' }
+        ),
+        h(
+          NButton,
+          { size: 'small', quaternary: true, type: 'error', onClick: () => handleDelete(row) },
+          { default: () => '删除' }
+        ),
+      ]
+    },
+  },
+]
 
 async function fetchData() {
   loading.value = true
@@ -51,28 +84,25 @@ function openEdit(row: Role) {
 
 async function handleSubmit() {
   if (!formRef.value) return
-  // Element Plus validate() 返回 Promise<boolean>——用 await + 非 async 回调
-  // 之前 await formRef.value.validate(async (valid) => {...}) 是错的：
-  // validate 回调签名是 sync (valid: boolean) => void，async 函数返回 void 不会
-  // 变成 awaitable，会让 fetchData 在 valid=false 时也执行，请求仍发出
+  // naive validate() 失败 reject——catch false，校验不过不发请求
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
   if (dialogMode.value === 'create') {
     await roleApi.createRole({ name: form.name, code: form.code, remark: form.remark })
-    ElMessage.success('创建成功')
+    message.success('创建成功')
   } else {
     await roleApi.updateRole(form.id, { name: form.name, code: form.code, remark: form.remark })
-    ElMessage.success('更新成功')
+    message.success('更新成功')
   }
   dialogVisible.value = false
   fetchData()
 }
 
 async function handleDelete(row: Role) {
-  const ok = await ElMessageBox.confirm(`确定删除角色「${row.name}」吗？`, '提示', { type: 'warning' }).catch(() => false)
-  if (ok === false) return
+  if (!(await confirm({ title: '提示', content: `确定删除角色「${row.name}」吗？`, positiveText: '删除' })))
+    return
   await roleApi.deleteRole(row.id)
-  ElMessage.success('已删除')
+  message.success('已删除')
   fetchData()
 }
 
@@ -81,48 +111,46 @@ onMounted(fetchData)
 
 <template>
   <div class="page">
-    <div class="mb-4">
-      <el-button type="success" @click="openCreate">新增角色</el-button>
+    <div class="mb-4 flex justify-end">
+      <n-button type="primary" @click="openCreate">新增角色</n-button>
     </div>
 
-    <div class="rounded-lg overflow-hidden border border-border">
-      <el-table v-loading="loading" :data="tableData" stripe>
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="name" label="角色名" />
-        <el-table-column prop="code" label="角色编码" />
-        <el-table-column prop="remark" label="备注" />
-        <el-table-column prop="created_at" label="创建时间" width="180">
-          <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
-        </el-table-column>
-        <el-table-column label="操作" width="160" fixed="right">
-          <template #default="scope">
-            <el-button type="primary" link @click="openEdit(scope.row as Role)">编辑</el-button>
-            <el-button type="danger" link @click="handleDelete(scope.row as Role)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </div>
+    <n-data-table
+      :columns="columns"
+      :data="tableData"
+      :loading="loading"
+      :row-key="(row: Role) => row.id"
+    />
 
-    <el-dialog
-      v-model="dialogVisible"
+    <n-modal
+      v-model:show="dialogVisible"
+      preset="card"
       :title="dialogMode === 'create' ? '新增角色' : '编辑角色'"
-      width="500px"
+      style="width: 480px"
     >
-      <el-form ref="formRef" :model="form" :rules="formRules" label-width="80px">
-        <el-form-item label="角色名" prop="name">
-          <el-input v-model="form.name" />
-        </el-form-item>
-        <el-form-item label="角色编码" prop="code">
-          <el-input v-model="form.code" :disabled="dialogMode === 'edit'" />
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="form.remark" type="textarea" :rows="3" />
-        </el-form-item>
-      </el-form>
+      <n-form
+        ref="formRef"
+        :model="form"
+        :rules="formRules"
+        label-placement="left"
+        label-width="72"
+      >
+        <n-form-item label="角色名" path="name">
+          <n-input v-model:value="form.name" />
+        </n-form-item>
+        <n-form-item label="角色编码" path="code">
+          <n-input v-model:value="form.code" :disabled="dialogMode === 'edit'" />
+        </n-form-item>
+        <n-form-item label="备注">
+          <n-input v-model:value="form.remark" type="textarea" :rows="3" />
+        </n-form-item>
+      </n-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit">提交</el-button>
+        <div class="flex justify-end gap-3">
+          <n-button @click="dialogVisible = false">取消</n-button>
+          <n-button type="primary" @click="handleSubmit">提交</n-button>
+        </div>
       </template>
-    </el-dialog>
+    </n-modal>
   </div>
 </template>

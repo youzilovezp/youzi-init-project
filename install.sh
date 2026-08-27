@@ -270,6 +270,7 @@ install_one_skill() {
 
 # opencode 的 / 补全在 ~/.config/opencode/command/<skill>.md——
 # 内容是一句转发（触发同名 skill），description 从 SKILL.md 同步提取防漂移。
+# 提示词按模式区分：ui 无后端（不问管理员密码、不提示 make dev）。
 install_opencode_command() {
     local skill_name="$1"
     local cmd_dir
@@ -281,8 +282,16 @@ install_opencode_command() {
         desc="youzi 脚手架：$skill_name"
     fi
     mkdir -p "$cmd_dir"
-    printf -- '---\ndescription: %s\n---\n\n使用 %s skill，按其 SKILL.md 的流程执行：询问项目显示名与初始管理员密码（均可回车跳过），调用 scripts/init.py <项目名> --only %s 生成项目，按脚本输出提示后续步骤（make dev 启动）。项目名参数：$ARGUMENTS。\n' \
-        "$desc" "$skill_name" "$only" > "$cmd_dir/$skill_name.md"
+    case "$only" in
+        ui)
+            printf -- '---\ndescription: %s\n---\n\n使用 %s skill，按其 SKILL.md 的流程执行：询问项目显示名（可回车跳过），调用 scripts/init.py <项目名> --only ui 生成项目（--only 必填，不得省略），按脚本输出提示后续步骤（pnpm install / pnpm dev 启动）。项目名参数：$ARGUMENTS。\n' \
+                "$desc" "$skill_name" > "$cmd_dir/$skill_name.md"
+            ;;
+        *)
+            printf -- '---\ndescription: %s\n---\n\n使用 %s skill，按其 SKILL.md 的流程执行：询问项目显示名与初始管理员密码（均可回车跳过），调用 scripts/init.py <项目名> --only %s 生成项目（--only 必填，不得省略），按脚本输出提示后续步骤（make dev 启动）。项目名参数：$ARGUMENTS。\n' \
+                "$desc" "$skill_name" "$only" > "$cmd_dir/$skill_name.md"
+            ;;
+    esac
     ok "已生成 opencode 命令补全：$cmd_dir/$skill_name.md"
 }
 

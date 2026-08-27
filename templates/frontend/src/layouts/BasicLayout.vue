@@ -1,10 +1,23 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, h, type Component } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { NIcon, type MenuOption } from 'naive-ui'
+import {
+  HomeOutline,
+  SettingsOutline,
+  PeopleOutline,
+  PersonCircleOutline,
+  SunnyOutline,
+  MoonOutline,
+  ColorPaletteOutline,
+  MenuOutline,
+  ChevronDownOutline,
+  LogOutOutline,
+  PersonOutline,
+} from '@vicons/ionicons5'
 import { useUserStore } from '@/stores/user'
 import { useAppStore, THEME_PRESETS } from '@/stores/app'
-import { ElMessageBox } from 'element-plus'
-import { Sunny, Moon } from '@element-plus/icons-vue'
+import { confirm } from '@/utils/feedback'
 import { APP_TITLE } from '@/config'
 
 const router = useRouter()
@@ -12,105 +25,125 @@ const route = useRoute()
 const userStore = useUserStore()
 const appStore = useAppStore()
 
-const menus = [
-  { path: '/dashboard', title: '首页', icon: 'HomeFilled' },
+function renderIcon(icon: Component) {
+  return () => h(NIcon, null, { default: () => h(icon) })
+}
+
+const menus: MenuOption[] = [
+  { label: '首页', key: '/dashboard', icon: renderIcon(HomeOutline) },
   {
-    title: '系统管理',
-    icon: 'Setting',
+    label: '系统管理',
+    key: 'system',
+    icon: renderIcon(SettingsOutline),
     children: [
-      { path: '/system/user', title: '用户管理', icon: 'User', admin: true },
-      { path: '/system/role', title: '角色管理', icon: 'UserFilled', admin: true },
+      { label: '用户管理', key: '/system/user', icon: renderIcon(PeopleOutline) },
+      { label: '角色管理', key: '/system/role', icon: renderIcon(PersonCircleOutline) },
     ],
   },
 ]
 
-const filteredMenus = computed(() => {
+const ADMIN_MENU_KEYS = new Set(['/system/user', '/system/role'])
+
+const menuOptions = computed<MenuOption[]>(() => {
+  const isAdmin = userStore.isSuperuser
   return menus
     .map((m) => {
       if (m.children) {
-        const children = m.children.filter(
-          (c) => !c.admin || userStore.isSuperuser
+        const children = (m.children as MenuOption[]).filter(
+          (c) => !ADMIN_MENU_KEYS.has(String(c.key)) || isAdmin
         )
         return children.length ? { ...m, children } : null
       }
       return m
     })
-    .filter((m): m is NonNullable<typeof m> => m !== null)
+    .filter((m): m is MenuOption => m !== null)
 })
 
 const activeMenu = computed(() => route.path)
 
-async function handleLogout() {
-  try {
-    await ElMessageBox.confirm('确定要退出登录吗？', '提示', {
-      type: 'warning',
-    })
-    await userStore.logout()
-    // replace 而非 push：避免在历史栈留一条已退出的回边
-    router.replace('/login')
-  } catch {
-    /* cancel */
-  }
+function handleMenuSelect(key: string) {
+  router.push(key)
+}
+
+const userOptions = [
+  { label: '个人中心', key: 'profile', icon: renderIcon(PersonOutline) },
+  { type: 'divider', key: 'd1' },
+  { label: '退出登录', key: 'logout', icon: renderIcon(LogOutOutline) },
+]
+
+async function handleUserCommand(key: string) {
+  if (key !== 'logout') return
+  // confirm：确认 true / 取消 false
+  if (!(await confirm({ title: '提示', content: '确定要退出登录吗？', positiveText: '退出' })))
+    return
+  await userStore.logout()
+  // replace 而非 push：避免在历史栈留一条已退出的回边
+  router.replace('/login')
 }
 </script>
 
 <template>
-  <el-container class="layout-container">
+  <n-layout class="layout-container" has-sider>
     <!-- 侧边栏 -->
-    <el-aside :width="appStore.sidebarCollapsed ? '64px' : '220px'" class="layout-aside bg-bg-card">
+    <n-layout-sider
+      bordered
+      collapse-mode="width"
+      :collapsed="appStore.sidebarCollapsed"
+      :collapsed-width="64"
+      :width="220"
+      show-trigger="bar"
+      class="layout-aside"
+      :native-scrollbar="false"
+    >
       <div class="logo">
         <img src="/youzi-logo.svg" alt="logo" class="logo-img" />
-        <span v-if="!appStore.sidebarCollapsed" class="logo-text text-text">{{ APP_TITLE }}</span>
+        <span v-if="!appStore.sidebarCollapsed" class="logo-text">{{ APP_TITLE }}</span>
       </div>
-      <el-menu
-        :default-active="activeMenu"
-        :collapse="appStore.sidebarCollapsed"
-        :collapse-transition="false"
-        router
-      >
-        <template v-for="menu in filteredMenus" :key="menu.path">
-          <el-sub-menu v-if="menu.children" :index="menu.path || menu.title">
-            <template #title>
-              <el-icon><component :is="menu.icon" /></el-icon>
-              <span>{{ menu.title }}</span>
-            </template>
-            <el-menu-item v-for="child in menu.children" :key="child.path" :index="child.path">
-              <el-icon><component :is="child.icon" /></el-icon>
-              <template #title>{{ child.title }}</template>
-            </el-menu-item>
-          </el-sub-menu>
-          <el-menu-item v-else :index="menu.path">
-            <el-icon><component :is="menu.icon" /></el-icon>
-            <template #title>{{ menu.title }}</template>
-          </el-menu-item>
-        </template>
-      </el-menu>
-    </el-aside>
+      <n-menu
+        :value="activeMenu"
+        :options="menuOptions"
+        :collapsed="appStore.sidebarCollapsed"
+        :collapsed-width="64"
+        :collapsed-icon-size="20"
+        @update:value="handleMenuSelect"
+      />
+    </n-layout-sider>
 
-    <el-container>
+    <n-layout class="layout-right">
       <!-- 顶栏：毛玻璃 -->
-      <el-header height="56px" class="layout-header bg-bg-card/70 backdrop-blur-md border-b border-border">
+      <header class="layout-header">
         <div class="header-left">
-          <el-icon class="collapse-btn" @click="appStore.toggleSidebar">
-            <component :is="appStore.sidebarCollapsed ? 'Expand' : 'Fold'" />
-          </el-icon>
-          <el-breadcrumb separator="/">
-            <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
-            <el-breadcrumb-item v-if="route.meta.title">{{ route.meta.title }}</el-breadcrumb-item>
-          </el-breadcrumb>
+          <n-button quaternary circle @click="appStore.toggleSidebar">
+            <template #icon>
+              <n-icon :component="MenuOutline" />
+            </template>
+          </n-button>
+          <n-breadcrumb>
+            <n-breadcrumb-item @click="router.push('/dashboard')">首页</n-breadcrumb-item>
+            <n-breadcrumb-item v-if="route.meta.title">{{ route.meta.title }}</n-breadcrumb-item>
+          </n-breadcrumb>
         </div>
         <div class="header-right">
           <!-- 暗色切换 -->
-          <el-button circle :title="appStore.isDark ? '切换亮色模式' : '切换暗色模式'" @click="appStore.toggleDark">
-            <el-icon><Moon v-if="appStore.isDark" /><Sunny v-else /></el-icon>
-          </el-button>
+          <n-button
+            quaternary
+            circle
+            :title="appStore.isDark ? '切换亮色模式' : '切换暗色模式'"
+            @click="appStore.toggleDark"
+          >
+            <template #icon>
+              <n-icon :component="appStore.isDark ? SunnyOutline : MoonOutline" />
+            </template>
+          </n-button>
 
           <!-- 主题色 -->
-          <el-popover :width="220" trigger="click" placement="bottom-end">
-            <template #reference>
-              <el-button circle title="主题色">
-                <span class="primary-dot" :style="{ background: appStore.primaryColor }" />
-              </el-button>
+          <n-popover trigger="click" placement="bottom-end" :width="220">
+            <template #trigger>
+              <n-button quaternary circle title="主题色">
+                <template #icon>
+                  <n-icon :component="ColorPaletteOutline" />
+                </template>
+              </n-button>
             </template>
             <div class="swatch-grid">
               <div v-for="p in THEME_PRESETS" :key="p.color" class="swatch-item">
@@ -125,35 +158,31 @@ async function handleLogout() {
                 <span class="swatch-name">{{ p.name }}</span>
               </div>
             </div>
-          </el-popover>
+          </n-popover>
 
           <!-- 用户 -->
-          <el-dropdown @command="(c: string) => c === 'logout' && handleLogout()">
+          <n-dropdown :options="userOptions" @select="handleUserCommand">
             <span class="user-info">
-              <el-avatar :size="32">{{ userStore.userInfo?.nickname?.charAt(0) || 'U' }}</el-avatar>
+              <n-avatar round :size="30" :style="{ background: 'var(--yz-primary)' }">
+                {{ userStore.userInfo?.nickname?.charAt(0) || 'U' }}
+              </n-avatar>
               <span>{{ userStore.displayName }}</span>
-              <el-icon><ArrowDown /></el-icon>
+              <n-icon :component="ChevronDownOutline" />
             </span>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="profile">个人中心</el-dropdown-item>
-                <el-dropdown-item divided command="logout">退出登录</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
+          </n-dropdown>
         </div>
-      </el-header>
+      </header>
 
       <!-- 主内容 -->
-      <el-main class="layout-main bg-bg-page">
+      <n-layout-content class="layout-main" :native-scrollbar="false">
         <router-view v-slot="{ Component }">
           <transition name="fade">
             <component :is="Component" />
           </transition>
         </router-view>
-      </el-main>
-    </el-container>
-  </el-container>
+      </n-layout-content>
+    </n-layout>
+  </n-layout>
 </template>
 
 <style scoped lang="scss">
@@ -162,9 +191,6 @@ async function handleLogout() {
 }
 
 .layout-aside {
-  transition: width 0.3s;
-  overflow-x: hidden;
-
   .logo {
     height: 56px;
     display: flex;
@@ -174,7 +200,6 @@ async function handleLogout() {
     gap: 8px;
     font-size: 16px;
     font-weight: bold;
-    border-bottom: 1px solid var(--el-border-color-light);
     overflow: hidden;
   }
 
@@ -189,33 +214,31 @@ async function handleLogout() {
     overflow: hidden;
     text-overflow: ellipsis;
   }
-
-  :deep(.el-menu) {
-    border-right: none;
-  }
 }
 
 .layout-header {
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
+  border-bottom: 1px solid var(--yz-border);
+  background: color-mix(in srgb, var(--yz-bg-card) 70%, transparent);
+  backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 10;
 
   .header-left {
     display: flex;
     align-items: center;
-    gap: 16px;
-
-    .collapse-btn {
-      font-size: 20px;
-      cursor: pointer;
-    }
+    gap: 8px;
   }
 
   .header-right {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
   }
 }
 
@@ -224,13 +247,6 @@ async function handleLogout() {
   align-items: center;
   gap: 8px;
   cursor: pointer;
-}
-
-.primary-dot {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
 }
 
 .swatch-grid {
@@ -261,18 +277,19 @@ async function handleLogout() {
 
   &.active {
     box-shadow:
-      0 0 0 2px var(--el-bg-color-overlay),
-      0 0 0 4px var(--el-color-primary);
+      0 0 0 2px var(--yz-bg-card),
+      0 0 0 4px var(--yz-primary);
   }
 }
 
 .swatch-name {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--yz-text-secondary);
 }
 
 .layout-main {
   padding: 16px;
+  background: var(--yz-bg-page);
 }
 
 .fade-enter-active,

@@ -37,7 +37,7 @@ python3 backend/scripts/add_module.py <name> --title "中文标题" --fields "a:
    api_router.include_router(<name>_router, prefix='/<name>', tags=['标题'])
    ```
 3. `frontend/src/router/index.ts`：children 里加路由记录
-4. `frontend/src/layouts/BasicLayout.vue`：`const menus = [` 数组加 `{ path: '/<name>', title: '标题', icon: 'Goods' }`（icon 是 Element Plus 图标名字符串，已全局注册）
+4. `frontend/src/layouts/BasicLayout.vue`：`const menus = [` 数组加 `{ path: '/<name>', title: '标题', icon: 'Goods' }`（icon 是 Naive UI 图标名字符串，已全局注册）
 5. 数据库迁移：
    ```bash
    make db-migrate MSG="add <name>"

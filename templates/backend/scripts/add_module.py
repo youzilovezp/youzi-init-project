@@ -301,10 +301,10 @@ def _form_default_obj(fields: list[dict]) -> str:
 
 
 def _form_validation_rules(fields: list[dict]) -> str:
-    """生成 Element Plus 的 FormRules（只校验 str 必填字段）。
+    """生成 naive-ui 的 FormRules（只校验 str 必填字段）。
 
-    Element Plus 的 FormRule 必须用 field 名作为 key（对应 el-form-item 的 prop），
-    不能有 name 字段。type-check 期望 Partial<Record<string, FormItemRule>>。
+    naive-ui 的 FormRule 用 field 名作 key（对应 n-form-item 的 path），
+    required/message/trigger 形状与 Element Plus 兼容。
     """
     rules = []
     for f in fields:
@@ -318,64 +318,41 @@ def _form_validation_rules(fields: list[dict]) -> str:
 
 
 def _table_columns(fields: list[dict]) -> str:
-    """生成 el-table-column 行。text 字段不进表格（太宽）。"""
+    """生成 naive-ui DataTableColumns 条目。text 字段不进表格（太宽）。"""
     lines = []
     for f in fields:
         if f["type"] == "text":
             continue
-        width = "120" if f["type"] == "float" else ""
-        if width:
-            lines.append(
-                f'        <el-table-column prop="{f["name"]}" label="{_label(f["name"])}" width="{width}" />'
-            )
-        else:
-            lines.append(
-                f'        <el-table-column prop="{f["name"]}" label="{_label(f["name"])}" />'
-            )
+        width = ", width: 120" if f["type"] == "float" else ""
+        lines.append(
+            f'  <<%OPEN%>> title: "{_label(f["name"])}", key: "{f["name"]}"{width} <<%CLOSE%>>,'
+        )
     return "\n".join(lines)
 
 
 def _form_items(fields: list[dict]) -> str:
-    """生成 dialog 内的 el-form-item。"""
-    widget_map = {
-        "str": "el-input",
-        "text": "el-input",
-        "int": "el-input-number",
-        "float": "el-input-number",
-        "bool": "el-switch",
-        "datetime": "el-date-picker",
-    }
+    """生成 modal 内的 n-form-item。"""
     lines = []
     for f in fields:
-        widget = widget_map[f["type"]]
+        label = _label(f["name"])
+        name = f["name"]
+        lines.append(f'        <n-form-item label="{label}" path="{name}">')
         if f["type"] == "text":
             lines.append(
-                f'        <el-form-item label="{_label(f["name"])}" prop="{f["name"]}">'
+                f'          <n-input v-model:value="form.{name}" type="textarea" :rows="3" />'
             )
-            lines.append(
-                f'          <el-input v-model="form.{f["name"]}" type="textarea" :rows="3" />'
-            )
-            lines.append("        </el-form-item>")
-        elif widget == "el-switch":
-            lines.append(
-                f'        <el-form-item label="{_label(f["name"])}" prop="{f["name"]}">'
-            )
-            lines.append(f'          <el-switch v-model="form.{f["name"]}" />')
-            lines.append("        </el-form-item>")
+        elif f["type"] == "bool":
+            lines.append(f'          <n-switch v-model:value="form.{name}" />')
         elif f["type"] == "datetime":
+            # n-date-picker 走 formatted-value（字符串），与后端 ISO 字符串对齐
             lines.append(
-                f'        <el-form-item label="{_label(f["name"])}" prop="{f["name"]}">'
+                f'          <n-date-picker v-model:formatted-value="form.{name}" type="datetime" value-format="yyyy-MM-dd\'T\'HH:mm:ss" clearable />'
             )
-            lines.append(
-                f'          <el-date-picker v-model="form.{f["name"]}" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" />'
-            )
-            lines.append("        </el-form-item>")
+        elif f["type"] in ("int", "float"):
+            lines.append(f'          <n-input-number v-model:value="form.{name}" />')
         else:
-            lines.append(
-                f'        <el-form-item label="{_label(f["name"])}" prop="{f["name"]}">'
-            )
-            lines.append(f'          <{widget} v-model="form.{f["name"]}" />')
-            lines.append("        </el-form-item>")
+            lines.append(f'          <n-input v-model:value="form.{name}" />')
+        lines.append("        </n-form-item>")
     return "\n".join(lines)
 
 
@@ -530,135 +507,162 @@ async def delete_item(db: SessionDep, _user: SuperUser, item_id: int):
 '''
 
 VIEW_TEMPLATE = """<script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { h, onMounted, reactive, ref } from 'vue'
+import { NButton, type DataTableColumns, type FormInst, type FormRules } from 'naive-ui'
 import * as __MODULE__Api from '@/api/__MODULE__'
 import type { __CLS__, __CLS__CreatePayload, __CLS__UpdatePayload } from '@/api/__MODULE__'
 import { formatTime } from '@/utils/format'
+import { message, confirm } from '@/utils/feedback'
 
 const loading = ref(false)
 const tableData = ref<__CLS__[]>([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
-const dialogVisible = ref(false)
-const dialogMode = ref<'create' | 'edit'>('create')
-const formRef = ref<FormInstance>()
+const modalVisible = ref(false)
+const modalMode = ref<'create' | 'edit'>('create')
+const formRef = ref<FormInst>()
 const form = reactive(<<%ITEMS%>>)
 
 const rules: FormRules = <<%RULES%>>
 
-async function fetchData() <<%OPEN%>>
+const columns: DataTableColumns<__CLS__> = [
+  { title: 'ID', key: 'id', width: 70 },
+__TABLE_COLUMNS__
+  { title: '创建时间', key: 'created_at', width: 170, render: (row) => formatTime(row.created_at) },
+  {
+    title: '操作',
+    key: 'actions',
+    width: 130,
+    render(row) {
+      return [
+        h(
+          NButton,
+          { size: 'small', quaternary: true, type: 'primary', onClick: () => openEdit(row) },
+          { default: () => '编辑' }
+        ),
+        h(
+          NButton,
+          { size: 'small', quaternary: true, type: 'error', onClick: () => handleDelete(row) },
+          { default: () => '删除' }
+        ),
+      ]
+    },
+  },
+]
+
+async function fetchData() {
   loading.value = true
-  try <<%OPEN%>>
+  try {
     const data = await __MODULE__Api.listItems(page.value, pageSize.value)
     tableData.value = data.items
     total.value = data.total
-  <<%CLOSE%>> finally <<%OPEN%>>
+  } finally {
     loading.value = false
-  <<%CLOSE%>>
+  }
 }
 
-function handlePageChange(p: number) <<%OPEN%>>
+function handlePageChange(p: number) {
   page.value = p
   fetchData()
-<<%CLOSE%>>
+}
 
-function handleSizeChange(s: number) <<%OPEN%>>
+function handleSizeChange(s: number) {
   pageSize.value = s
   page.value = 1
   fetchData()
-<<%CLOSE%>>
+}
 
-function openCreate() <<%OPEN%>>
-  dialogMode.value = 'create'
+function openCreate() {
+  modalMode.value = 'create'
   Object.assign(form, <<%ITEMS%>>)
-  dialogVisible.value = true
-<<%CLOSE%>>
+  modalVisible.value = true
+}
 
-function openEdit(row: __CLS__) <<%OPEN%>>
-  dialogMode.value = 'edit'
+function openEdit(row: __CLS__) {
+  modalMode.value = 'edit'
   Object.assign(form, row)
-  dialogVisible.value = true
-<<%CLOSE%>>
+  modalVisible.value = true
+}
 
-async function handleSubmit() <<%OPEN%>>
+async function handleSubmit() {
   if (!formRef.value) return
-  // Element Plus validate() 返回 Promise<boolean>——用 await + 非 async 回调
-  // 之前 await formRef.value.validate(async (valid) => {...}) 是错的：
-  // validate 回调签名是 sync (valid: boolean) => void，async 函数返回 void 不会
-  // 变成 awaitable，会让 fetchData 在 valid=false 时也执行，删除/更新仍发出请求
+  // naive-ui validate() 失败 reject——catch false，校验不过不发请求
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
   const payload: __CLS__CreatePayload = <<%ITEM_FIELDS%>>
-  if (dialogMode.value === 'create') <<%OPEN%>>
+  if (modalMode.value === 'create') {
     await __MODULE__Api.createItem(payload)
-    ElMessage.success('创建成功')
-  <<%CLOSE%>> else <<%OPEN%>>
+    message.success('创建成功')
+  } else {
     await __MODULE__Api.updateItem(form.id, payload)
-    ElMessage.success('更新成功')
-  <<%CLOSE%>>
-  dialogVisible.value = false
+    message.success('更新成功')
+  }
+  modalVisible.value = false
   fetchData()
-<<%CLOSE%>>
+}
 
-async function handleDelete(row: __CLS__) <<%OPEN%>>
-  // 取消删除要 catch，否则 ElMessageBox reject 变成 unhandled rejection
-  const ok = await ElMessageBox.confirm(`确定删除「$<<%OPEN%>><<%ROW_NAME%>><<%CLOSE%>>」吗？`, '提示', <<%OPEN%>> type: 'warning' <<%CLOSE%>>).catch(() => false)
-  if (ok === false) return
+async function handleDelete(row: __CLS__) {
+  // confirm：确认 true / 取消 false——.catch 兜底防 unhandled rejection
+  const ok = await confirm({
+    title: '提示',
+    content: `确定删除「$<<%OPEN%>><<%ROW_NAME%>><<%CLOSE%>>」吗？`,
+    positiveText: '删除',
+  }).catch(() => false)
+  if (!ok) return
   await __MODULE__Api.deleteItem(row.id)
-  ElMessage.success('已删除')
+  message.success('已删除')
   fetchData()
-<<%CLOSE%>>
+}
 
 onMounted(fetchData)
 </script>
 
 <template>
   <div class="page">
-    <div class="mb-4">
-      <el-button type="success" @click="openCreate">新增__TITLE__</el-button>
+    <div class="mb-4 flex justify-end">
+      <n-button type="primary" @click="openCreate">新增__TITLE__</n-button>
     </div>
 
-    <div class="rounded-lg overflow-hidden border border-border">
-      <el-table v-loading="loading" :data="tableData" stripe">
-        <el-table-column prop="id" label="ID" width="80" />
-__TABLE_COLUMNS__
-        <el-table-column prop="created_at" label="创建时间" width="180">
-          <template #default="scope">
-            <<%DATE_FMT%>>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="160" fixed="right">
-          <template #default="scope">
-            <el-button type="primary" link @click="openEdit(scope.row as __CLS__)">编辑</el-button>
-            <el-button type="danger" link @click="handleDelete(scope.row as __CLS__)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </div>
+    <n-data-table
+      remote
+      :columns="columns"
+      :data="tableData"
+      :loading="loading"
+      :row-key="(row: __CLS__) => row.id"
+      :pagination="{
+        page: page,
+        pageSize: pageSize,
+        itemCount: total,
+        pageSizes: [10, 20, 50, 100],
+        showSizePicker: true,
+        'onUpdate:page': handlePageChange,
+        'onUpdate:pageSize': handleSizeChange,
+      }"
+    />
 
-    <div class="flex justify-end mt-4">
-      <el-pagination
-        v-model:current-page="page"
-        v-model:page-size="pageSize"
-        :total="total"
-        layout="total, sizes, prev, pager, next, jumper"
-        :page-sizes="[10, 20, 50, 100]"
-        @current-change="handlePageChange"
-        @size-change="handleSizeChange"
-      />
-    </div>
-
-    <el-dialog v-model="dialogVisible" :title="dialogMode === 'create' ? '新增__TITLE__' : '编辑__TITLE__'" width="500px">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="80px">
+    <n-modal
+      v-model:show="modalVisible"
+      preset="card"
+      :title="modalMode === 'create' ? '新增__TITLE__' : '编辑__TITLE__'"
+      style="width: 520px"
+    >
+      <n-form
+        ref="formRef"
+        :model="form"
+        :rules="rules"
+        label-placement="left"
+        label-width="88"
+      >
 __FORM_ITEMS__
-      </el-form>
+      </n-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit">提交</el-button>
+        <div class="flex justify-end gap-3">
+          <n-button @click="modalVisible = false">取消</n-button>
+          <n-button type="primary" @click="handleSubmit">提交</n-button>
+        </div>
       </template>
-    </el-dialog>
+    </n-modal>
   </div>
 </template>
 """

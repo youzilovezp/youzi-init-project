@@ -1,10 +1,10 @@
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
-import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
-import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
+import { NaiveUiResolver } from 'unplugin-vue-components/resolvers'
 import { fileURLToPath, URL } from 'node:url'
+import { uiMockPlugin } from './mock/server'
 
 export default defineConfig(({ mode }) => {
   // 只加载 VITE_* 前缀的环境变量（不读 CI 密钥等）
@@ -13,13 +13,10 @@ export default defineConfig(({ mode }) => {
     plugins: [
       tailwindcss(),
       vue(),
-      AutoImport({
-        resolvers: [ElementPlusResolver()],
-        dts: 'auto-imports.d.ts',
-        eslintrc: { enabled: false },
-      }),
+      // UI 预览模式（--only ui 生成，无后端）：dev 时用 mock API，admin/admin 可登录
+      ...(env.VITE_USE_MOCK === 'true' ? [uiMockPlugin()] : []),
       Components({
-        resolvers: [ElementPlusResolver()],
+        resolvers: [NaiveUiResolver()],
         dts: 'components.d.ts',
       }),
     ],
@@ -45,7 +42,7 @@ export default defineConfig(({ mode }) => {
         output: {
           manualChunks: {
             vue: ['vue', 'vue-router', 'pinia'],
-            element: ['element-plus', '@element-plus/icons-vue'],
+            naive: ['naive-ui'],
           },
         },
       },

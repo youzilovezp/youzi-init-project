@@ -1,7 +1,15 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, type Component } from 'vue'
 import { useRouter } from 'vue-router'
-import { User, CircleCheck, UserFilled, Sunny, Link, ArrowRight } from '@element-plus/icons-vue'
+import { NIcon } from 'naive-ui'
+import {
+  PeopleOutline,
+  CheckmarkCircleOutline,
+  PersonCircleOutline,
+  SunnyOutline,
+  LinkOutline,
+  ArrowForwardOutline,
+} from '@vicons/ionicons5'
 import { listUsers } from '@/api/user'
 import { listRoles } from '@/api/role'
 import { useUserStore } from '@/stores/user'
@@ -24,13 +32,13 @@ const today = new Date().toLocaleDateString('zh-CN', {
   weekday: 'long',
 })
 
-const shortcuts = [
-  { title: '用户管理', desc: '增删改查、启用禁用', icon: User, action: () => goto('/system/user') },
-  { title: '角色管理', desc: '维护角色与权限', icon: UserFilled, action: () => goto('/system/role') },
+const shortcuts: { title: string; desc: string; icon: Component; action: () => void }[] = [
+  { title: '用户管理', desc: '增删改查、启用禁用', icon: PeopleOutline, action: () => goto('/system/user') },
+  { title: '角色管理', desc: '维护角色与权限', icon: PersonCircleOutline, action: () => goto('/system/role') },
   {
     title: 'Swagger',
     desc: '后端接口文档',
-    icon: Link,
+    icon: LinkOutline,
     action: () => window.open('/api/v1/docs', '_blank'),
   },
 ]
@@ -72,15 +80,18 @@ onMounted(async () => {
     <!-- 统计卡 -->
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <div v-for="stat in [
-        { label: '用户总数', value: totalUsers, icon: User },
-        { label: '启用用户', value: activeUsers, icon: CircleCheck },
-        { label: '角色数', value: roleCount, icon: UserFilled },
+        { label: '用户总数', value: totalUsers, icon: PeopleOutline },
+        { label: '启用用户', value: activeUsers, icon: CheckmarkCircleOutline },
+        { label: '角色数', value: roleCount, icon: PersonCircleOutline },
       ]" :key="stat.label" class="flex items-center gap-4 rounded-card border border-border bg-bg-card p-5">
         <span
           class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full"
-          :style="{ background: 'var(--el-color-primary-light-9)', color: 'var(--el-color-primary)' }"
+          :style="{
+            background: 'color-mix(in srgb, var(--yz-primary) 12%, transparent)',
+            color: 'var(--yz-primary)',
+          }"
         >
-          <el-icon :size="22"><component :is="stat.icon" /></el-icon>
+          <n-icon :size="22" :component="stat.icon" />
         </span>
         <div>
           <div class="text-text-secondary text-sm">{{ stat.label }}</div>
@@ -91,7 +102,7 @@ onMounted(async () => {
       <!-- 欢迎卡 -->
       <div class="rounded-card border border-border bg-bg-card p-5">
         <div class="flex items-center gap-2">
-          <el-icon :size="18" color="var(--el-color-primary)"><Sunny /></el-icon>
+          <n-icon :size="18" :style="{ color: 'var(--yz-primary)' }" :component="SunnyOutline" />
           <span class="text-text-secondary text-sm">{{ today }}</span>
         </div>
         <div class="text-text mt-2 truncate text-lg font-semibold">
@@ -108,7 +119,7 @@ onMounted(async () => {
       </div>
       <div class="rounded-card border border-border bg-bg-card p-5">
         <div class="text-text mb-2 font-semibold">角色分布</div>
-        <el-empty v-if="roleDistFailed" description="角色分布加载失败" :image-size="80" />
+        <n-empty v-if="roleDistFailed" description="角色分布加载失败" :size="80" />
         <RolePieChart v-else :data="roleDist" />
       </div>
     </div>
@@ -119,22 +130,25 @@ onMounted(async () => {
         v-for="item in shortcuts"
         :key="item.title"
         type="button"
-        class="flex cursor-pointer items-center justify-between rounded-card border border-border bg-bg-card p-5 text-left transition-colors hover:border-[var(--el-color-primary)]"
+        class="flex cursor-pointer items-center justify-between rounded-card border border-border bg-bg-card p-5 text-left transition-colors hover:border-primary"
         @click="item.action"
       >
         <span class="flex items-center gap-3">
           <span
             class="inline-flex h-10 w-10 items-center justify-center rounded-full"
-            :style="{ background: 'var(--el-color-primary-light-9)', color: 'var(--el-color-primary)' }"
+            :style="{
+              background: 'color-mix(in srgb, var(--yz-primary) 12%, transparent)',
+              color: 'var(--yz-primary)',
+            }"
           >
-            <el-icon :size="18"><component :is="item.icon" /></el-icon>
+            <n-icon :size="18" :component="item.icon" />
           </span>
           <span>
             <span class="text-text block font-medium">{{ item.title }}</span>
             <span class="text-text-secondary block text-xs">{{ item.desc }}</span>
           </span>
         </span>
-        <el-icon class="text-text-secondary"><ArrowRight /></el-icon>
+        <n-icon class="text-text-secondary" :component="ArrowForwardOutline" />
       </button>
     </div>
   </div>
