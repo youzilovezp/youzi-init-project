@@ -2,8 +2,9 @@
 import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { useAppStore } from '@/stores/app'
+import { useAppStore, THEME_PRESETS } from '@/stores/app'
 import { ElMessageBox } from 'element-plus'
+import { Sunny, Moon } from '@element-plus/icons-vue'
 import { APP_TITLE } from '@/config'
 
 const router = useRouter()
@@ -56,17 +57,15 @@ async function handleLogout() {
 <template>
   <el-container class="layout-container">
     <!-- 侧边栏 -->
-    <el-aside :width="appStore.sidebarCollapsed ? '64px' : '220px'" class="layout-aside">
+    <el-aside :width="appStore.sidebarCollapsed ? '64px' : '220px'" class="layout-aside bg-bg-card">
       <div class="logo">
-        <img src="/youzi-logo.svg" alt="logo" :class="appStore.sidebarCollapsed ? 'logo-img-collapsed' : 'logo-img'" />
-        <span v-if="!appStore.sidebarCollapsed" class="logo-text">{{ APP_TITLE }}</span>
+        <img src="/youzi-logo.svg" alt="logo" class="logo-img" />
+        <span v-if="!appStore.sidebarCollapsed" class="logo-text text-text">{{ APP_TITLE }}</span>
       </div>
       <el-menu
         :default-active="activeMenu"
         :collapse="appStore.sidebarCollapsed"
-        background-color="#001529"
-        text-color="#fff"
-        active-text-color="#1890ff"
+        :collapse-transition="false"
         router
       >
         <template v-for="menu in filteredMenus" :key="menu.path">
@@ -89,8 +88,8 @@ async function handleLogout() {
     </el-aside>
 
     <el-container>
-      <!-- 顶栏 -->
-      <el-header class="layout-header">
+      <!-- 顶栏：毛玻璃 -->
+      <el-header height="56px" class="layout-header bg-bg-card/70 backdrop-blur-md border-b border-border">
         <div class="header-left">
           <el-icon class="collapse-btn" @click="appStore.toggleSidebar">
             <component :is="appStore.sidebarCollapsed ? 'Expand' : 'Fold'" />
@@ -101,6 +100,34 @@ async function handleLogout() {
           </el-breadcrumb>
         </div>
         <div class="header-right">
+          <!-- 暗色切换 -->
+          <el-button circle :title="appStore.isDark ? '切换亮色模式' : '切换暗色模式'" @click="appStore.toggleDark">
+            <el-icon><Moon v-if="appStore.isDark" /><Sunny v-else /></el-icon>
+          </el-button>
+
+          <!-- 主题色 -->
+          <el-popover :width="220" trigger="click" placement="bottom-end">
+            <template #reference>
+              <el-button circle title="主题色">
+                <span class="primary-dot" :style="{ background: appStore.primaryColor }" />
+              </el-button>
+            </template>
+            <div class="swatch-grid">
+              <div v-for="p in THEME_PRESETS" :key="p.color" class="swatch-item">
+                <button
+                  type="button"
+                  class="swatch"
+                  :class="{ active: p.color === appStore.primaryColor }"
+                  :style="{ background: p.color }"
+                  :title="p.name"
+                  @click="appStore.setPrimaryColor(p.color)"
+                />
+                <span class="swatch-name">{{ p.name }}</span>
+              </div>
+            </div>
+          </el-popover>
+
+          <!-- 用户 -->
           <el-dropdown @command="(c: string) => c === 'logout' && handleLogout()">
             <span class="user-info">
               <el-avatar :size="32">{{ userStore.userInfo?.nickname?.charAt(0) || 'U' }}</el-avatar>
@@ -118,7 +145,7 @@ async function handleLogout() {
       </el-header>
 
       <!-- 主内容 -->
-      <el-main class="layout-main">
+      <el-main class="layout-main bg-bg-page">
         <router-view v-slot="{ Component }">
           <transition name="fade">
             <component :is="Component" />
@@ -135,26 +162,23 @@ async function handleLogout() {
 }
 
 .layout-aside {
-  background: #001529;
   transition: width 0.3s;
   overflow-x: hidden;
 
   .logo {
-    height: 60px;
+    height: 56px;
     display: flex;
     align-items: center;
     justify-content: flex-start;
     padding: 0 16px;
     gap: 8px;
-    color: #fff;
     font-size: 16px;
     font-weight: bold;
-    border-bottom: 1px solid #1f2d3d;
+    border-bottom: 1px solid var(--el-border-color-light);
     overflow: hidden;
   }
 
-  .logo-img,
-  .logo-img-collapsed {
+  .logo-img {
     height: 36px;
     width: 36px;
     flex-shrink: 0;
@@ -172,8 +196,6 @@ async function handleLogout() {
 }
 
 .layout-header {
-  background: #fff;
-  border-bottom: 1px solid #e8e8e8;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -190,16 +212,66 @@ async function handleLogout() {
     }
   }
 
-  .user-info {
+  .header-right {
     display: flex;
     align-items: center;
-    gap: 8px;
-    cursor: pointer;
+    gap: 12px;
   }
 }
 
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.primary-dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}
+
+.swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px 8px;
+}
+
+.swatch-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 0.15s;
+
+  &:hover {
+    transform: scale(1.15);
+  }
+
+  &.active {
+    box-shadow:
+      0 0 0 2px var(--el-bg-color-overlay),
+      0 0 0 4px var(--el-color-primary);
+  }
+}
+
+.swatch-name {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
 .layout-main {
-  background: #f0f2f5;
   padding: 16px;
 }
 
