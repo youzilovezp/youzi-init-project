@@ -31,6 +31,18 @@ describe('app store 主题', () => {
     expect(localStorage.getItem('youzi-app-primary')).toBe('#409eff')
   })
 
+  it('setPrimaryColor 忽略非法 hex（3 位缩写 / rgb() 不写入不覆盖）', () => {
+    const app = useAppStore()
+    app.setPrimaryColor('#7c3aed')
+    app.setPrimaryColor('#f00')
+    app.setPrimaryColor('rgb(0, 0, 0)')
+    expect(app.primaryColor).toBe('#7c3aed')
+    expect(localStorage.getItem('youzi-app-primary')).toBe('#7c3aed')
+    expect(
+      getComputedStyle(document.documentElement).getPropertyValue('--el-color-primary').trim().toLowerCase(),
+    ).toBe('#7c3aed')
+  })
+
   it('色板预设包含品牌蓝且无重复色值', () => {
     const colors = THEME_PRESETS.map((p) => p.color)
     expect(colors).toContain('#409eff')

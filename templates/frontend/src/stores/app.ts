@@ -19,7 +19,11 @@ export const THEME_PRESETS: ThemePreset[] = [
 
 /** 生成 primary 的 light-3/5/7/8/9 与 dark-2 变量并写到 documentElement
  *  暗色下 light-N 改与 EP 暗色底 #141414 混合（内联变量优先级高于 html.dark 选择器，需自查暗色） */
+/** 合法主题色：仅 6 位 hex（非法输入忽略，防 NaN 通道写坏全套变量） */
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/
+
 function applyPrimaryColor(color: string, dark: boolean) {
+  if (!HEX_COLOR_RE.test(color)) return
   const root = document.documentElement
   const mix = (c: string, t: string, ratio: number) => {
     const hex = (s: string): [number, number, number] => [
@@ -88,6 +92,7 @@ export const useAppStore = defineStore('app', () => {
     isDark.value = v
   }
   function setPrimaryColor(color: string) {
+    if (!HEX_COLOR_RE.test(color)) return
     primaryColor.value = color
   }
 

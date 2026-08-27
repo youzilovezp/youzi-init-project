@@ -166,6 +166,9 @@ def test_generated_view_no_literal_row_name(tmp_path):
     assert "catch(() => false)" in view, "确认框缺 .catch（unhandled rejection 回归）"
     assert "el-pagination" in view, "生成页缺分页（第五轮 🔴）"
     assert "formatTime" in view, "生成页缺 formatTime（第十一轮 🔴 时区）"
+    assert (
+        "el-card" not in view
+    ), ".page 已是卡片容器，生成页再包 el-card 会卡中卡（终审 Important#1）"
 
 
 # ============================================================

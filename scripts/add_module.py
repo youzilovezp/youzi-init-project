@@ -616,12 +616,12 @@ onMounted(fetchData)
 
 <template>
   <div class="page">
-    <el-card>
-      <div style="margin-bottom: 16px">
-        <el-button type="success" @click="openCreate">新增__TITLE__</el-button>
-      </div>
+    <div class="mb-4">
+      <el-button type="success" @click="openCreate">新增__TITLE__</el-button>
+    </div>
 
-      <el-table v-loading="loading" :data="tableData" stripe>
+    <div class="rounded-lg overflow-hidden border border-border">
+      <el-table v-loading="loading" :data="tableData" stripe">
         <el-table-column prop="id" label="ID" width="80" />
 __TABLE_COLUMNS__
         <el-table-column prop="created_at" label="创建时间" width="180">
@@ -636,18 +636,19 @@ __TABLE_COLUMNS__
           </template>
         </el-table-column>
       </el-table>
-      <div style="margin-top: 16px; display: flex; justify-content: flex-end">
-        <el-pagination
-          v-model:current-page="page"
-          v-model:page-size="pageSize"
-          :total="total"
-          layout="total, sizes, prev, pager, next, jumper"
-          :page-sizes="[10, 20, 50, 100]"
-          @current-change="handlePageChange"
-          @size-change="handleSizeChange"
-        />
-      </div>
-    </el-card>
+    </div>
+
+    <div class="flex justify-end mt-4">
+      <el-pagination
+        v-model:current-page="page"
+        v-model:page-size="pageSize"
+        :total="total"
+        layout="total, sizes, prev, pager, next, jumper"
+        :page-sizes="[10, 20, 50, 100]"
+        @current-change="handlePageChange"
+        @size-change="handleSizeChange"
+      />
+    </div>
 
     <el-dialog v-model="dialogVisible" :title="dialogMode === 'create' ? '新增__TITLE__' : '编辑__TITLE__'" width="500px">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="80px">
