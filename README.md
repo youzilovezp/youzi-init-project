@@ -162,6 +162,9 @@ python3 backend/scripts/add_module.py order --title "订单管理" \
 | 📘 | TypeScript | 5.4 |
 | ⚡ | Vite | 5.1 |
 | 🎨 | Element Plus | 2.6 |
+| 🌬️ | Tailwind CSS | 4.3 |
+| 🔧 | @vueuse/core | 14.4 |
+| 📊 | ECharts（vue-echarts） | 6.1 |
 | 📦 | Pinia | 2.1 |
 
 ---
