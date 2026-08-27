@@ -6,7 +6,7 @@
 /* 设计令牌：自建 CSS 变量（运行时由 stores/app.ts 写 --yz-primary；暗色整套覆盖）。
    不依赖 UI 库 CSS 变量——Naive UI 主题走 JS themeOverrides，不暴露 CSS 变量 */
 :root {
-  --yz-primary: #f59e0b;
+  --yz-primary: #10b981;
   --yz-bg-page: #f2f3f5;
   --yz-bg-card: #ffffff;
   --yz-text: #1f2329;
